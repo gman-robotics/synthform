@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Drive synthform the way a user does. Run from the repo root.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+WORK="${SYNTHFORM_VERIFY_WORK:-/tmp/synthform-verify-work}"
+EVIDENCE="${SYNTHFORM_VERIFY_EVIDENCE:-/tmp/synthform-verify-evidence}"
+PY="${SYNTHFORM_PYTHON:-python3}"
+
+cd "$ROOT"
+
+doctor() {
+  local version help
+  version="$("$PY" -m synthform --version)"
+  help="$("$PY" -m synthform fill --help)"
+  printf '%s\n' "$version"
+  printf '%s\n' "$help" | grep -q "Synthetic training sample"
+  printf '%s\n' "$help" | grep -q "Not a signed original"
+  printf '%s\n' "$help" | grep -q "Form 1583"
+  printf 'doctor ok version=%s\n' "$version"
+}
+
+drive_fill_boxes() {
+  local run="$WORK/fill-boxes"
+  local ev="$EVIDENCE/fill-boxes"
+  rm -rf "$run"
+  mkdir -p "$run" "$ev"
+  "$PY" "$ROOT/skills/verify-synthform/scripts/make-blank-form.py" "$run"
+  local cmd=("$PY" -m synthform fill
+    --form "$run/blank.pdf"
+    --data "$run/rows.csv"
+    --boxes "$run/boxes.json"
+    --out "$run/out"
+    --dpi 100
+    --seed 7)
+  printf '%q ' "${cmd[@]}" > "$ev/command.txt"
+  printf '\n' >> "$ev/command.txt"
+  set +e
+  "${cmd[@]}" > "$ev/stdout.txt" 2> "$ev/stderr.txt"
+  local rc=$?
+  set -e
+  printf '%s\n' "$rc" > "$ev/exit_code.txt"
+  if [[ "$rc" -ne 0 ]]; then
+    echo "fill exited $rc" >&2
+    exit "$rc"
+  fi
+  cp "$run/out/labels.jsonl" "$run/out/manifest.json" "$ev/"
+  "$PY" "$ROOT/skills/verify-synthform/scripts/check-fill-boxes.py" "$run/out" "$ev"
+  echo "drive-fill-boxes ok evidence=$ev"
+}
+
+cleanup() {
+  rm -rf "$WORK"
+  echo "removed $WORK"
+  echo "evidence kept at $EVIDENCE"
+}
+
+case "${1:-}" in
+  doctor) doctor ;;
+  drive-fill-boxes) drive_fill_boxes ;;
+  cleanup) cleanup ;;
+  *)
+    echo "usage: verify-synthform doctor|drive-fill-boxes|cleanup" >&2
+    exit 2
+    ;;
+esac

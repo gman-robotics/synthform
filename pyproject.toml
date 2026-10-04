@@ -3,14 +3,14 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "scanform"
+name = "synthform"
 version = "0.1.0"
 description = "Synthetic scanned-form training samples with handwriting-style text and image-only PDFs."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-authors = [{name = "scanform contributors"}]
+authors = [{name = "synthform contributors"}]
 keywords = ["synthetic-data", "forms", "ocr", "training"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -32,13 +32,13 @@ dependencies = [
 dev = ["pytest"]
 
 [project.scripts]
-scanform = "scanform.cli:main"
+synthform = "synthform.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-scanform = ["fonts/*/*.ttf", "fonts/*/*.otf", "fonts/*/*.txt", "fonts/README.md"]
+synthform = ["fonts/*/*.ttf", "fonts/*/*.otf", "fonts/*/*.txt", "fonts/README.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

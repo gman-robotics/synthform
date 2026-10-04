@@ -7,17 +7,17 @@ import random
 import sys
 from pathlib import Path
 
-from scanform import SYNTHETIC_WARNING, __version__
-from scanform.data import load_rows
-from scanform.errors import ScanformError
-from scanform.fields import resolve_fields
-from scanform.fonts import load_font_faces
-from scanform.pdfout import write_image_pdf
-from scanform.raster import load_form_pages, points_to_pixels
-from scanform.render import draw_field
-from scanform.rngutil import stable_seed
-from scanform.scan import apply_scan, map_box, params_for
-from scanform.styles import assign_row_styles
+from synthform import SYNTHETIC_WARNING, __version__
+from synthform.data import load_rows
+from synthform.errors import ScanformError
+from synthform.fields import resolve_fields
+from synthform.fonts import load_font_faces
+from synthform.pdfout import write_image_pdf
+from synthform.raster import load_form_pages, points_to_pixels
+from synthform.render import draw_field
+from synthform.rngutil import stable_seed
+from synthform.scan import apply_scan, map_box, params_for
+from synthform.styles import assign_row_styles
 
 
 def fill_form(
@@ -87,7 +87,7 @@ def fill_form(
             )
     _write_labels(out / "labels.jsonl", labels)
     manifest = {
-        "generator": "scanform",
+        "generator": "synthform",
         "version": __version__,
         "warning": SYNTHETIC_WARNING,
         "synthetic_training_sample": True,
@@ -106,7 +106,7 @@ def _warn_unknown_columns(rows: list[dict[str, str]], names: set[str]) -> None:
     for row in rows:
         for key in row:
             if key not in names and key not in warned:
-                print(f"scanform: no box for field {key!r}", file=sys.stderr)
+                print(f"synthform: no box for field {key!r}", file=sys.stderr)
                 warned.add(key)
 
 

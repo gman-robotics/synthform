@@ -8,8 +8,8 @@ from PIL import Image
 from pypdf import PdfReader
 from reportlab.pdfgen import canvas
 
-from scanform import SYNTHETIC_WARNING, __version__
-from scanform.cli import main
+from synthform import SYNTHETIC_WARNING, __version__
+from synthform.cli import main
 
 ANSWERS = (
     {"full_name": "QXNAME-ALPHA-7741", "city": "QXCITY-ALPHA-2290"},
@@ -156,7 +156,7 @@ def test_pdf_without_fields_requires_boxes(tmp_path: Path):
 
 def test_help_states_the_synthetic_limit():
     proc = subprocess.run(
-        [sys.executable, "-m", "scanform", "fill", "--help"],
+        [sys.executable, "-m", "synthform", "fill", "--help"],
         check=False,
         capture_output=True,
         text=True,
@@ -202,7 +202,7 @@ def _assert_run(out: Path, seed: int, dpi: int) -> None:
     assert len(row_keys) == 2
     _assert_answers_are_not_text(out)
     manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["generator"] == "scanform"
+    assert manifest["generator"] == "synthform"
     assert manifest["version"] == __version__
     assert manifest["warning"] == SYNTHETIC_WARNING
     assert "synthetic training sample" in manifest["warning"].lower()

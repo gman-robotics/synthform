@@ -9,8 +9,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from scanform.rngutil import stable_seed
-from scanform.styles import RowStyle
+from synthform.rngutil import stable_seed
+from synthform.styles import RowStyle
 
 
 @dataclass(frozen=True)

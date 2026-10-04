@@ -5,8 +5,8 @@ from __future__ import annotations
 from PIL import Image
 import pypdfium2 as pdfium
 
-from scanform.errors import ScanformError
-from scanform.fields import FieldBox
+from synthform.errors import ScanformError
+from synthform.fields import FieldBox
 
 
 def load_form_pages(

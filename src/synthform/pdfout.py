@@ -9,7 +9,7 @@ from pypdf import PdfReader, PdfWriter
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen.canvas import Canvas
 
-from scanform import SYNTHETIC_WARNING, __version__
+from synthform import SYNTHETIC_WARNING, __version__
 
 
 def write_image_pdf(path: Path, images: list[Image.Image], dpi: int) -> None:
@@ -20,8 +20,8 @@ def write_image_pdf(path: Path, images: list[Image.Image], dpi: int) -> None:
     canvas.setTitle("Synthetic training sample")
     canvas.setSubject(SYNTHETIC_WARNING)
     canvas.setKeywords("synthetic training sample, not a signed original")
-    canvas.setCreator(f"scanform {__version__}")
-    canvas.setAuthor("scanform synthetic training generator")
+    canvas.setCreator(f"synthform {__version__}")
+    canvas.setAuthor("synthform synthetic training generator")
     for image in images:
         width_pt = image.width * 72.0 / dpi
         height_pt = image.height * 72.0 / dpi
@@ -50,9 +50,9 @@ def _stamp_metadata(path: Path) -> None:
             "/Title": "Synthetic training sample",
             "/Subject": SYNTHETIC_WARNING,
             "/Keywords": "synthetic training sample, not a signed original",
-            "/Creator": f"scanform {__version__}",
-            "/Author": "scanform synthetic training generator",
-            "/Producer": f"scanform {__version__} synthetic training sample",
+            "/Creator": f"synthform {__version__}",
+            "/Author": "synthform synthetic training generator",
+            "/Producer": f"synthform {__version__} synthetic training sample",
         }
     )
     with path.open("wb") as handle:

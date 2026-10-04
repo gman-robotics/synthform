@@ -9,7 +9,7 @@ from pathlib import Path
 from pypdf import PdfReader
 from pypdf.generic import IndirectObject
 
-from scanform.errors import ScanformError
+from synthform.errors import ScanformError
 
 _SKIPPED_FIELD_TYPES = {"/Btn", "/Sig"}
 

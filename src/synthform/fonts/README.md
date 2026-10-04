@@ -2,7 +2,7 @@
 
 These files are third-party font software under the SIL Open Font License, Version 1.1.
 Each directory keeps that font's copyright notice and `OFL.txt`.
-The scanform Python code is MIT and does not relicense these fonts.
+The synthform Python code is MIT and does not relicense these fonts.
 No handwriting dataset is stored here.
 
 Upstream: https://github.com/google/fonts (`ofl/` tree). `Caveat-Regular.ttf` is the Regular instance of the OFL Caveat family.

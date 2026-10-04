@@ -6,7 +6,7 @@ import csv
 import json
 from pathlib import Path
 
-from scanform.errors import ScanformError
+from synthform.errors import ScanformError
 
 
 def load_rows(path: Path) -> list[dict[str, str]]:

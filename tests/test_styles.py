@@ -1,12 +1,12 @@
-from scanform.fonts import load_font_faces
-from scanform.render import field_draw_params
-from scanform.styles import assign_row_styles
+from synthform.fonts import load_font_faces
+from synthform.render import field_draw_params
+from synthform.styles import assign_row_styles
 
 
 def test_vendored_fonts_include_several_ofl_faces():
     from pathlib import Path
 
-    root = Path(__file__).resolve().parents[1] / "src" / "scanform" / "fonts"
+    root = Path(__file__).resolve().parents[1] / "src" / "synthform" / "fonts"
     families = sorted(path for path in root.iterdir() if path.is_dir())
     assert len(families) >= 6
     for family in families:

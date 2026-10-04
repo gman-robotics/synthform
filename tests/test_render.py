@@ -2,10 +2,10 @@ import random
 
 from PIL import Image
 
-from scanform.fonts import load_font_faces
-from scanform.render import draw_field
-from scanform.scan import ScanParams, apply_scan, map_box, params_for
-from scanform.styles import assign_row_styles
+from synthform.fonts import load_font_faces
+from synthform.render import draw_field
+from synthform.scan import ScanParams, apply_scan, map_box, params_for
+from synthform.styles import assign_row_styles
 
 
 def _style():

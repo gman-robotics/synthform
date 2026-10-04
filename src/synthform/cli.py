@@ -1,4 +1,4 @@
-"""Command line for scanform fill."""
+"""Command line for synthform fill."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from scanform import SYNTHETIC_WARNING, __version__
-from scanform.errors import ScanformError
-from scanform.fill import fill_form
+from synthform import SYNTHETIC_WARNING, __version__
+from synthform.errors import ScanformError
+from synthform.fill import fill_form
 
 _DESCRIPTION = (
     "Generate synthetic scanned-form training samples. "
@@ -17,8 +17,8 @@ _DESCRIPTION = (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="scanform", description=_DESCRIPTION)
-    parser.add_argument("--version", action="version", version=f"scanform {__version__}")
+    parser = argparse.ArgumentParser(prog="synthform", description=_DESCRIPTION)
+    parser.add_argument("--version", action="version", version=f"synthform {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
     fill = commands.add_parser("fill", help="Fill a blank form from a table of synthetic values", description=_DESCRIPTION)
     fill.add_argument("--form", required=True, type=Path, help="Blank PDF, PNG, or JPEG")
@@ -51,6 +51,6 @@ def main(argv: list[str] | None = None) -> int:
                 font_dir=args.font_dir,
             )
     except ScanformError as exc:
-        print(f"scanform: {exc}", file=sys.stderr)
+        print(f"synthform: {exc}", file=sys.stderr)
         return 2
     return 0

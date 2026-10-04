@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PIL import ImageFont
 
-from scanform.errors import ScanformError
+from synthform.errors import ScanformError
 
 FONT_DIR = Path(__file__).resolve().parent / "fonts"
 _FONT_SUFFIXES = {".ttf", ".otf"}

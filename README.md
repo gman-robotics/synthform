@@ -1,10 +1,10 @@
-# scanform
+# synthform
 
-scanform builds synthetic training samples of filled forms. You give it a blank form and a table of fake field values. It writes one scanned-looking PDF per row, plus labels for training a form reader.
+synthform builds synthetic training samples of filled forms. You give it a blank form and a table of fake field values. It writes one scanned-looking PDF per row, plus labels for training a form reader.
 
 These PDFs are synthetic training samples. They are not signed originals.
 
-Do not use this to fill Form 1583 or any legal, tax, or identity form for submission. Do not present the output as an authentic document. scanform does not copy a real person's signature and does not try to defeat forensic checks.
+Do not use this to fill Form 1583 or any legal, tax, or identity form for submission. Do not present the output as an authentic document. synthform does not copy a real person's signature and does not try to defeat forensic checks.
 
 ## What you get
 
@@ -22,17 +22,17 @@ python3 -m pip install --user --break-system-packages -e ".[dev]"
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-`python3 -m scanform` works without that `PATH` change.
+`python3 -m synthform` works without that `PATH` change.
 
 ## Fill a form
 
 ```bash
-scanform fill --form blank.pdf --data rows.csv --out out --seed 7
+synthform fill --form blank.pdf --data rows.csv --out out --seed 7
 ```
 
 `--form` is a PDF, PNG, or JPEG. `--data` is a CSV with a header row, or a JSON list of objects. Keys are field names.
 
-If the PDF has AcroForm text fields, scanform uses those widget rectangles. A missing `--boxes` file is fine in that case. When AcroForm fields exist, scanform uses them and does not use `--boxes`.
+If the PDF has AcroForm text fields, synthform uses those widget rectangles. A missing `--boxes` file is fine in that case. When AcroForm fields exist, synthform uses them and does not use `--boxes`.
 
 Signature widgets and buttons are skipped. This tool does not draw a signature graphic and has no flag to clone a person's signature.
 
@@ -72,11 +72,11 @@ The pixel box is the field rectangle after the small scan rotation, expanded so 
 
 ## How the pages are made
 
-For each row, scanform picks one Open Font License handwriting font and one jitter setting. When the number of rows is small (at most the size of the built-in style list, which is thousands of font and jitter pairs), two rows do not share that same pair.
+For each row, synthform picks one Open Font License handwriting font and one jitter setting. When the number of rows is small (at most the size of the built-in style list, which is thousands of font and jitter pairs), two rows do not share that same pair.
 
 Each field then gets a little more jitter: size, baseline, a small rotation, tracking, near-black ink, and a slight x/y offset inside the box. Text that does not fit is wrapped or shrunk. Nothing is drawn outside the box.
 
-After the fields are composited, scanform applies a small page rotation, mild blur, sensor noise, JPEG-style compression, and a slight gray paper cast. It then wraps that raster in a PDF. There is no live text layer of the answers.
+After the fields are composited, synthform applies a small page rotation, mild blur, sensor noise, JPEG-style compression, and a slight gray paper cast. It then wraps that raster in a PDF. There is no live text layer of the answers.
 
 This first version uses fonts plus jitter so it runs with no handwriting dataset.
 
@@ -94,7 +94,7 @@ Historical HTR sets (Bentham, Washington, Saint Gall) are a different domain. Th
 
 ## Fonts
 
-The handwriting fonts under `src/scanform/fonts/` are third-party font software under the SIL Open Font License 1.1. Each family directory includes its `OFL.txt` and its copyright notice. The Python code in this repository is MIT. The fonts stay under the OFL and are not relicensed.
+The handwriting fonts under `src/synthform/fonts/` are third-party font software under the SIL Open Font License 1.1. Each family directory includes its `OFL.txt` and its copyright notice. The Python code in this repository is MIT. The fonts stay under the OFL and are not relicensed.
 
 Families: Caveat, Patrick Hand, Indie Flower, Shadows Into Light, Kalam, Architects Daughter, Gloria Hallelujah, Cedarville Cursive, Reenie Beanie, Covered By Your Grace, Nothing You Could Do, and La Belle Aurore. Upstream copies live in the [Google Fonts](https://github.com/google/fonts) `ofl/` tree. Caveat is the Regular instance of that OFL family.
 

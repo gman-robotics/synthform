@@ -6,8 +6,8 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
-from scanform.errors import ScanformError
-from scanform.fonts import FontFace
+from synthform.errors import ScanformError
+from synthform.fonts import FontFace
 
 _SIZE_SCALES = (0.58, 0.72, 0.86)
 _ROTATIONS = (-2.2, -0.7, 0.8, 2.1)

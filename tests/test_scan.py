@@ -1,3 +1,4 @@
+import io
 import random
 import tomllib
 from dataclasses import replace
@@ -87,16 +88,16 @@ def test_grain_sigma_stays_between_2_and_5_levels():
 
 
 def test_cast_is_applied_before_jpeg(monkeypatch):
-    seen: list[Image.Image] = []
-    real_encode = scan._jpeg_roundtrip
+    seen: list = []
+    real_encode = scan._jpeg_bytes
 
-    def spy(image: Image.Image, quality: int) -> Image.Image:
+    def spy(image: Image.Image, quality: int) -> bytes:
         seen.append(image.copy())
         result = real_encode(image, quality)
-        seen.append(result.copy())
+        seen.append(Image.open(io.BytesIO(result)).convert("RGB"))
         return result
 
-    monkeypatch.setattr(scan, "_jpeg_roundtrip", spy)
+    monkeypatch.setattr(scan, "_jpeg_bytes", spy)
     params = replace(_scan_params(1), angle=0.0, cast_alpha=0.12, cast_color=(240, 230, 200))
     page = Image.new("RGB", (96, 96), (255, 255, 255))
     result = apply_scan(page, params, random.Random(1))

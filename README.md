@@ -48,7 +48,7 @@ When the PDF has no AcroForm fields, or the form is an image, pass `--boxes`:
 
 `page` is zero-based. `x`, `y`, `w`, and `h` are PDF points. The origin is the bottom-left of the page.
 
-`--dpi` defaults to 200. `--seed` defaults to 0. The seed drives font choice, jitter, and the scan effects. The same seed and the same inputs reproduce the same labels. Version 0.2.0 changed the scan and the field jitter, so a seed gives different pixels, boxes, and jitter than version 0.1.0. A corpus from 0.1.0 cannot be rebuilt with 0.2.0.
+`--dpi` defaults to 200. `--seed` defaults to 0. The seed drives font choice, jitter, and the scan effects. The same seed and the same inputs reproduce the same labels. Version 0.2.0 changed the scan and the field jitter, so a seed gives different pixels, boxes, and jitter than version 0.1.0. A corpus from 0.1.0 cannot be rebuilt with 0.2.0. Version 0.2.0 also changes the Python API: `ScanParams` has `grain_sigma` in place of `noise_sigma` and `noise_alpha`, `params_for` takes the dpi as its second argument, and `write_image_pdf` takes the JPEG bytes of each page (from `scan_to_jpeg`) in place of images.
 
 `--font-dir` optionally adds `.ttf` or `.otf` files that are already in that directory. It reads only those font files. It does not download fonts or handwriting datasets, and it does not imitate a particular writer.
 
@@ -82,7 +82,7 @@ For each row, synthform picks one Open Font License handwriting font and one jit
 
 Each field then gets a little more jitter: size, baseline, a small rotation, tracking, near-black ink, and a slight x/y offset inside the box. Text that does not fit is wrapped or shrunk. If it still does not fit at 6 px, the field is skipped. Nothing is drawn outside the box.
 
-After the fields are composited, synthform applies a small page rotation, a mild blur, zero-mean grain, and a slight gray paper cast. It then compresses the page as a JPEG, so nothing changes the pixels after the compression. The blur sigma is 0.10 to 0.22 mm, so it grows with `--dpi`. The grain has a standard deviation of 2 to 5 gray levels and the same offset on red, green, and blue. It then wraps that raster in a PDF. There is no live text layer of the answers.
+After the fields are composited, synthform applies a small page rotation, a mild blur, zero-mean grain, and a slight gray paper cast. It then compresses the page as a JPEG. The PDF holds those JPEG bytes as they are, with no second encode, so no synthform step changes the pixels after the compression. A PDF reader decodes the JPEG, and two decoders can give values that differ by a few gray levels. The blur sigma is 0.10 to 0.22 mm, so it grows with `--dpi`. The grain has a standard deviation of 2 to 5 gray levels and the same offset on red, green, and blue. It then wraps that JPEG in a PDF. There is no live text layer of the answers.
 
 This first version uses fonts plus jitter so it runs with no handwriting dataset.
 

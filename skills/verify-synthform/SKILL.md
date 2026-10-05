@@ -118,5 +118,6 @@ Removes `/tmp/synthform-verify-work` only. It does not delete `/tmp/synthform-ve
 | same | `skills/verify-synthform/scripts/verify-synthform drive-all` |
 | same | `skills/verify-synthform/scripts/verify-synthform cleanup` |
 | `scripts/check-fill-boxes.py` | `check-fill-boxes.py FILLED_OUT EVIDENCE [TWIN_OUT]` (the drive calls it) |
+| `scripts/bench-fill.py` | `skills/verify-synthform/scripts/bench-fill.py [--rows 30] [--runs 3] [--dpi 200] [--keep-out DIR]` (CPU seconds, peak memory, and PDF bytes as one JSON line; synthetic inputs only, no network) |
 
 Run them from the repo root. They are executable. Each drive is more than one command, so it is a script, not prose.

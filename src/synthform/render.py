@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import math
 import random
 from dataclasses import dataclass
@@ -132,7 +133,7 @@ def _fit(
 ):
     start = max(6, min(start_px, budget_h))
     for size in range(start, 5, -1):
-        font = ImageFont.truetype(str(font_path), size)
+        font = _font(str(font_path), size)
         tracking_px = tracking_em * size
         lines = _wrap(text, font, budget_w, tracking_px)
         line_h = max(1, int(math.ceil(size * 1.2)))
@@ -141,10 +142,15 @@ def _fit(
         rot_w, rot_h = _rotated_size(block_w + 2, block_h + 2, rotation)
         if rot_w <= budget_w and rot_h <= budget_h:
             return font, lines, tracking_px, line_h, size, True
-    font = ImageFont.truetype(str(font_path), 6)
+    font = _font(str(font_path), 6)
     tracking_px = tracking_em * 6
     lines = _wrap(text, font, budget_w, tracking_px)
     return font, lines, tracking_px, max(1, int(math.ceil(6 * 1.2))), 6, False
+
+
+@functools.lru_cache(maxsize=512)
+def _font(path: str, size: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(path, size)
 
 
 def _wrap(text: str, font: ImageFont.FreeTypeFont, max_width: float, tracking_px: float) -> list[str]:

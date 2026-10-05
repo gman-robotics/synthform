@@ -45,6 +45,11 @@ def params_for(rng: random.Random, dpi: int) -> ScanParams:
 
 
 def apply_scan(image: Image.Image, params: ScanParams, rng: random.Random) -> Image.Image:
+    with Image.open(io.BytesIO(scan_to_jpeg(image, params, rng))) as decoded:
+        return decoded.convert("RGB")
+
+
+def scan_to_jpeg(image: Image.Image, params: ScanParams, rng: random.Random) -> bytes:
     page = image.convert("RGB")
     page = page.rotate(
         params.angle,
@@ -56,7 +61,7 @@ def apply_scan(image: Image.Image, params: ScanParams, rng: random.Random) -> Im
     page = _grain(page, rng, params.grain_sigma)
     cast = Image.new("RGB", page.size, params.cast_color)
     page = Image.blend(page, cast, params.cast_alpha)
-    return _jpeg_roundtrip(page, params.jpeg_quality)
+    return _jpeg_bytes(page, params.jpeg_quality)
 
 
 def map_box(
@@ -71,21 +76,17 @@ def map_box(
     upper = min(image_h, max(0, y))
     right = min(image_w, max(0, x + width))
     lower = min(image_h, max(0, y + height))
-    mask = Image.new("L", image_size, 0)
+    box_left, box_upper, box_right, box_lower = left, upper, right, lower
     if right > left and lower > upper:
-        mask.paste(255, (left, upper, right, lower))
-    rotated = mask.rotate(
-        params.angle,
-        resample=Image.Resampling.BICUBIC,
-        expand=False,
-        fillcolor=0,
-    )
-    binary = rotated.point(lambda value: 255 if value >= 8 else 0)
-    bbox = binary.getbbox()
-    if bbox is None:
-        box_left, box_upper, box_right, box_lower = left, upper, right, lower
-    else:
-        box_left, box_upper, box_right, box_lower = bbox
+        xs, ys = _rotated_corners((left, upper, right, lower), image_size, params.angle)
+        rotated = (
+            max(0, math.floor(min(xs))),
+            max(0, math.floor(min(ys))),
+            min(image_w, math.ceil(max(xs))),
+            min(image_h, math.ceil(max(ys))),
+        )
+        if rotated[2] > rotated[0] and rotated[3] > rotated[1]:
+            box_left, box_upper, box_right, box_lower = rotated
     pad = int(math.ceil(params.blur_radius * 3 + 1)) + JPEG_LEAK_PAD_PX
     box_left = max(0, box_left - pad)
     box_upper = max(0, box_upper - pad)
@@ -97,6 +98,27 @@ def map_box(
         "w": int(box_right - box_left),
         "h": int(box_lower - box_upper),
     }
+
+
+def _rotated_corners(
+    rect: tuple[int, int, int, int],
+    image_size: tuple[int, int],
+    angle: float,
+) -> tuple[list[float], list[float]]:
+    left, upper, right, lower = rect
+    center_x = image_size[0] / 2
+    center_y = image_size[1] / 2
+    theta = math.radians(angle)
+    cos_t = math.cos(theta)
+    sin_t = math.sin(theta)
+    xs: list[float] = []
+    ys: list[float] = []
+    for corner_x, corner_y in ((left, upper), (right, upper), (left, lower), (right, lower)):
+        dx = corner_x - center_x
+        dy = corner_y - center_y
+        xs.append(center_x + dx * cos_t + dy * sin_t)
+        ys.append(center_y - dx * sin_t + dy * cos_t)
+    return xs, ys
 
 
 def _grain_table(sigma: float) -> list[int]:
@@ -113,10 +135,7 @@ def _grain(image: Image.Image, rng: random.Random, sigma: float) -> Image.Image:
     return ImageChops.add(image, signed, 1.0, -128)
 
 
-def _jpeg_roundtrip(image: Image.Image, quality: int) -> Image.Image:
+def _jpeg_bytes(image: Image.Image, quality: int) -> bytes:
     buffer = io.BytesIO()
     image.save(buffer, format="JPEG", quality=quality)
-    buffer.seek(0)
-    with Image.open(buffer) as decoded:
-        decoded.load()
-        return decoded.convert("RGB")
+    return buffer.getvalue()

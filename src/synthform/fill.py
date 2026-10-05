@@ -16,7 +16,7 @@ from synthform.pdfout import write_image_pdf
 from synthform.raster import load_form_pages, points_to_pixels
 from synthform.render import draw_field
 from synthform.rngutil import stable_seed
-from synthform.scan import apply_scan, map_box, params_for
+from synthform.scan import map_box, params_for, scan_to_jpeg
 from synthform.styles import assign_row_styles
 
 
@@ -71,7 +71,7 @@ def fill_form(
         for page_index, image in enumerate(working):
             rng = random.Random(stable_seed(seed, "scan", row_number, page_index))
             params = params_for(rng, dpi)
-            final_pages.append(apply_scan(image, params, rng))
+            final_pages.append(scan_to_jpeg(image, params, rng))
             scan_params.append(params)
         filename = f"{row_id}.pdf"
         write_image_pdf(out / filename, final_pages, dpi)

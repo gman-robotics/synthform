@@ -11,6 +11,7 @@ from reportlab.pdfgen import canvas
 
 from synthform import SYNTHETIC_WARNING, __version__
 from synthform.cli import main
+from synthform.fill import fill_form
 
 ANSWERS = (
     {"full_name": "QXNAME-ALPHA-7741", "city": "QXCITY-ALPHA-2290"},
@@ -251,6 +252,33 @@ def test_a_run_with_labels_does_not_warn_about_missing_labels(tmp_path: Path, ca
     err = capsys.readouterr().err
     assert "no label written" not in err
     assert "text does not fit" not in err
+
+
+def test_field_jitter_differs_by_row_through_fill_form(tmp_path: Path):
+    form = tmp_path / "blank.pdf"
+    boxes = _write_blank_form(form)
+    boxes_path = tmp_path / "boxes.json"
+    boxes_path.write_text(json.dumps(boxes), encoding="utf-8")
+    data = tmp_path / "rows.csv"
+    _write_csv(data, [{"full_name": f"Name {index}", "city": f"City {index}"} for index in range(30)])
+    out = tmp_path / "out"
+    fill_form(form=form, data=data, out=out, boxes=boxes_path, dpi=72, seed=3)
+
+    groups: dict[tuple[str, str], list[tuple]] = {}
+    for line in _read_labels(out):
+        jitter = line["jitter"]
+        style = line["style"]
+        residual = (
+            jitter["dx"],
+            round(jitter["rotation"] - style["rotation"], 3),
+            round(jitter["tracking_em"] - style["tracking"], 4),
+            tuple(a - b for a, b in zip(jitter["ink"], style["ink"])),
+        )
+        groups.setdefault((line["font_id"], line["field"]), []).append(residual)
+    repeated = [residuals for residuals in groups.values() if len(residuals) >= 2]
+    assert repeated
+    for residuals in repeated:
+        assert len(set(residuals)) == len(residuals)
 
 
 def test_help_states_the_synthetic_limit():

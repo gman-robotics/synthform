@@ -47,3 +47,29 @@ def test_fields_in_one_row_do_not_share_jitter():
     )
     assert full_name.ink != (0, 0, 0)
     assert city.ink != (0, 0, 0)
+
+
+def test_field_jitter_repeats_for_the_same_row():
+    fonts = load_font_faces()
+    style = assign_row_styles(1, seed=4, fonts=fonts)[0]
+    first = field_draw_params(style, seed=4, field_name="city", box_w=300, box_h=40, row=3)
+    again = field_draw_params(style, seed=4, field_name="city", box_w=300, box_h=40, row=3)
+    assert first == again
+
+
+def test_field_jitter_differs_between_rows_for_one_style_and_field():
+    fonts = load_font_faces()
+    style = assign_row_styles(1, seed=4, fonts=fonts)[0]
+    jitters = [
+        field_draw_params(style, seed=4, field_name="city", box_w=300, box_h=40, row=row)
+        for row in range(1, 9)
+    ]
+    assert len({(item.rotation, item.tracking_em, item.dx, item.dy, item.ink) for item in jitters}) == 8
+
+
+def test_row_zero_is_the_default_row():
+    fonts = load_font_faces()
+    style = assign_row_styles(1, seed=4, fonts=fonts)[0]
+    default = field_draw_params(style, seed=4, field_name="city", box_w=300, box_h=40)
+    explicit = field_draw_params(style, seed=4, field_name="city", box_w=300, box_h=40, row=0)
+    assert default == explicit

@@ -208,3 +208,18 @@ def test_bench_script_measures_a_small_run(tmp_path: Path):
     assert result["pdf_bytes"] == sum(path.stat().st_size for path in keep.glob("row-*.pdf"))
     assert sorted(path.name for path in keep.glob("row-*.pdf")) == ["row-0001.pdf", "row-0002.pdf"]
     assert len((keep / "labels.jsonl").read_text(encoding="utf-8").splitlines()) == 24
+
+
+def test_bench_rss_units_match_the_host_platform(monkeypatch):
+    import importlib.util
+
+    path = SCRIPTS / "bench-fill.py"
+    spec = importlib.util.spec_from_file_location("synthform_bench_fill", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module.sys, "platform", "linux")
+    assert module.peak_rss_mb_from_rusage(2 * 1024) == 2.0
+    monkeypatch.setattr(module.sys, "platform", "darwin")
+    assert module.peak_rss_mb_from_rusage(2 * 1024 * 1024) == 2.0
+

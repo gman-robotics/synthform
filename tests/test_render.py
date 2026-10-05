@@ -288,6 +288,24 @@ def _random_scan_params(rng: random.Random) -> ScanParams:
     )
 
 
+def test_map_box_tiny_clipped_edge_contains_the_mask_box():
+    box = (13, 0, 2, 2)
+    size = (220, 160)
+    params = ScanParams(
+        angle=-1.2,
+        blur_radius=0.4,
+        grain_sigma=3.0,
+        jpeg_quality=80,
+        cast_alpha=0.1,
+        cast_color=(220, 218, 212),
+    )
+    new = map_box(box, size, params)
+    old = _mask_box_reference(box, size, params)
+    assert new["x"] <= old["x"] and new["y"] <= old["y"]
+    assert new["x"] + new["w"] >= old["x"] + old["w"]
+    assert new["y"] + new["h"] >= old["y"] + old["h"]
+
+
 def test_map_box_is_at_least_as_large_as_the_mask_box():
     rng = random.Random(11)
     for _ in range(500):

@@ -78,6 +78,7 @@ def test_blur_radius_scales_with_dpi():
         assert at_200.blur_radius / at_100.blur_radius == pytest.approx(2.0)
         assert at_200.angle == at_100.angle
         assert at_200.jpeg_quality == at_100.jpeg_quality
+        assert at_200.grain_sigma == at_100.grain_sigma
 
 
 def test_grain_sigma_stays_between_2_and_5_levels():

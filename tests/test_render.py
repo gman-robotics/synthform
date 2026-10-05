@@ -1,4 +1,5 @@
 import json
+import math
 import random
 from dataclasses import replace
 
@@ -6,6 +7,7 @@ import pytest
 from PIL import Image, ImageChops, ImageFilter, ImageFont
 from reportlab.pdfgen import canvas
 
+from synthform import render, scan
 from synthform.cli import main
 from synthform.fields import FieldBox
 from synthform.fonts import load_font_faces
@@ -252,3 +254,109 @@ def _ink_inside(page: Image.Image, box: tuple[int, int, int, int]) -> bool:
             if page.getpixel((px, py)) != (255, 255, 255):
                 return True
     return False
+
+
+def _mask_box_reference(box: tuple[int, int, int, int], image_size: tuple[int, int], params: ScanParams) -> dict[str, int]:
+    image_w, image_h = image_size
+    x, y, width, height = box
+    left = min(image_w, max(0, x))
+    upper = min(image_h, max(0, y))
+    right = min(image_w, max(0, x + width))
+    lower = min(image_h, max(0, y + height))
+    mask = Image.new("L", image_size, 0)
+    if right > left and lower > upper:
+        mask.paste(255, (left, upper, right, lower))
+    rotated = mask.rotate(params.angle, resample=Image.Resampling.BICUBIC, expand=False, fillcolor=0)
+    bbox = rotated.point(lambda value: 255 if value >= 8 else 0).getbbox()
+    box_left, box_upper, box_right, box_lower = bbox if bbox is not None else (left, upper, right, lower)
+    pad = int(math.ceil(params.blur_radius * 3 + 1)) + scan.JPEG_LEAK_PAD_PX
+    box_left = max(0, box_left - pad)
+    box_upper = max(0, box_upper - pad)
+    box_right = min(image_w, box_right + pad)
+    box_lower = min(image_h, box_lower + pad)
+    return {"x": box_left, "y": box_upper, "w": box_right - box_left, "h": box_lower - box_upper}
+
+
+def _random_scan_params(rng: random.Random) -> ScanParams:
+    return ScanParams(
+        angle=rng.uniform(-1.2, 1.2),
+        blur_radius=rng.uniform(0.3, 2.8),
+        grain_sigma=3.0,
+        jpeg_quality=80,
+        cast_alpha=0.1,
+        cast_color=(220, 218, 212),
+    )
+
+
+def test_map_box_is_at_least_as_large_as_the_mask_box():
+    rng = random.Random(11)
+    for _ in range(500):
+        size = (rng.randint(60, 900), rng.randint(60, 900))
+        width = rng.randint(1, size[0])
+        height = rng.randint(1, size[1])
+        box = (
+            rng.randint(-width // 2, size[0] - width // 2),
+            rng.randint(-height // 2, size[1] - height // 2),
+            width,
+            height,
+        )
+        params = _random_scan_params(rng)
+        new = map_box(box, size, params)
+        old = _mask_box_reference(box, size, params)
+        assert new["x"] <= old["x"] and new["y"] <= old["y"], (box, size, params)
+        assert new["x"] + new["w"] >= old["x"] + old["w"], (box, size, params)
+        assert new["y"] + new["h"] >= old["y"] + old["h"], (box, size, params)
+
+
+SPIED_IMAGE_CALLS = ("new", "frombytes", "rotate", "point", "copy", "resize")
+
+
+def _spy_image_sizes(monkeypatch) -> list[tuple[str, tuple[int, int]]]:
+    seen: list[tuple[str, tuple[int, int]]] = []
+
+    def wrap(name, real):
+        def spy(*args, **kwargs):
+            result = real(*args, **kwargs)
+            seen.append((name, result.size))
+            return result
+
+        return spy
+
+    for name in ("new", "frombytes"):
+        monkeypatch.setattr(Image, name, wrap(name, getattr(Image, name)))
+    for name in ("rotate", "point", "copy", "resize"):
+        monkeypatch.setattr(Image.Image, name, wrap(name, getattr(Image.Image, name)))
+    return seen
+
+
+def test_memory_spy_sees_every_image_call(monkeypatch):
+    seen = _spy_image_sizes(monkeypatch)
+    small = Image.new("L", (4, 4), 0)
+    Image.frombytes("L", (4, 4), bytes(16))
+    small.rotate(1.0)
+    small.point(lambda value: value)
+    small.copy()
+    small.resize((2, 2))
+    assert {name for name, _ in seen} == set(SPIED_IMAGE_CALLS)
+
+
+def test_map_box_allocates_no_page_sized_image(monkeypatch):
+    size = (3000, 4000)
+    params = replace(_random_scan_params(random.Random(3)), angle=1.1, blur_radius=1.7)
+    seen = _spy_image_sizes(monkeypatch)
+    map_box((400, 900, 1800, 120), size, params)
+    map_box((-50, 3950, 300, 200), size, params)
+    limit = 0.01 * size[0] * size[1]
+    assert [(name, image_size) for name, image_size in seen if image_size[0] * image_size[1] > limit] == []
+
+
+def test_font_is_loaded_once_per_size():
+    style = _style()
+    render._font.cache_clear()
+    _fit("Ada Lovelace", style.font_path, 200, 40, 30, 0.01, 0.8)
+    first = render._font.cache_info()
+    _fit("Ada Lovelace", style.font_path, 200, 40, 30, 0.01, 0.8)
+    second = render._font.cache_info()
+    assert first.misses >= 1
+    assert second.misses == first.misses
+    assert second.hits > first.hits

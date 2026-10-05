@@ -176,3 +176,35 @@ def test_unknown_shell_drive_name_exits_2(tmp_path: Path):
     proc, _ = _run_shell_drive("drive-nothing", tmp_path)
     assert proc.returncode == 2
     assert "usage:" in proc.stderr
+
+
+def test_bench_script_measures_a_small_run(tmp_path: Path):
+    work = tmp_path / "bench"
+    keep = tmp_path / "kept"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "bench-fill.py"),
+            "--work", str(work),
+            "--rows", "2",
+            "--runs", "2",
+            "--dpi", "72",
+            "--keep-out", str(keep),
+        ],
+        cwd=REPO,
+        env=_env(),
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    result = json.loads(proc.stdout.strip().splitlines()[-1])
+    assert result["rows"] == 2
+    assert result["dpi"] == 72
+    assert len(result["cpu_seconds"]) == 2
+    assert result["best_cpu_seconds"] == min(result["cpu_seconds"])
+    assert result["peak_rss_mb"] > 0
+    assert result["pdf_bytes"] == sum(path.stat().st_size for path in keep.glob("row-*.pdf"))
+    assert sorted(path.name for path in keep.glob("row-*.pdf")) == ["row-0001.pdf", "row-0002.pdf"]
+    assert len((keep / "labels.jsonl").read_text(encoding="utf-8").splitlines()) == 24

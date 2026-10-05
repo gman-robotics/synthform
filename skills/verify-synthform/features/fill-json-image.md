@@ -16,10 +16,10 @@ Fill an image from JSON lets a user pass a PNG or JPEG plus a boxes file and a J
 Preconditions:
 
 - Doctor has passed.
-- Not covered by `drive-fill-boxes`.
+- `skills/verify-synthform/scripts/verify-synthform drive-fill-json-image` covers this entry point. `drive-fill-boxes` does not.
 
-- **Fill.** Create a white PNG, a one-object JSON file, and boxes in PDF points. Run the CLI. Exit code 0. `row-0002.pdf` is absent. `labels.jsonl` has two lines.
-- **Proof.** The PDF text layer does not contain the JSON values.
+- **Fill.** The drive creates a white PNG, a one-object JSON file, and boxes in PDF points. It runs the CLI with `--dpi 72 --seed 1`. Exit code 0. `row-0002.pdf` is absent. `labels.jsonl` has two lines.
+- **Proof.** The PDF text layer does not contain the JSON values. Evidence is in `/tmp/synthform-verify-evidence/fill-json-image/`.
 
 ## Gotchas
 

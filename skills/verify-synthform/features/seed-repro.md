@@ -16,10 +16,10 @@ Repeat a seed lets a user run the same form, table, boxes, dpi, and seed twice a
 Preconditions:
 
 - Doctor has passed.
-- Not covered by `drive-fill-boxes`.
+- `skills/verify-synthform/scripts/verify-synthform drive-seed-repro` covers this entry point. `drive-fill-boxes` does not.
 
-- **Fill twice.** Use `--seed 7` and `--dpi 72` into `out-a` and `out-b`. Both exit 0.
-- **Proof.** `out-a/labels.jsonl` and `out-b/labels.jsonl` are identical.
+- **Fill twice.** Use `--seed 7` and `--dpi 72` into `out-a` and `out-b`. The drive starts the two runs as two processes with `PYTHONHASHSEED` 1 and 2. Both exit 0.
+- **Proof.** `out-a/labels.jsonl` and `out-b/labels.jsonl` are identical. Evidence is in `/tmp/synthform-verify-evidence/seed-repro/`.
 
 ## Gotchas
 

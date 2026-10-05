@@ -17,6 +17,13 @@ BOXES = [
 ]
 
 
+def write_rows(path: Path, rows) -> None:
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["full_name", "city"])
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def main() -> None:
     run = Path(sys.argv[1])
     form = run / "blank.pdf"
@@ -28,10 +35,8 @@ def main() -> None:
     pdf.rect(36, 120, 340, 40, stroke=1, fill=0)
     pdf.save()
     (run / "boxes.json").write_text(json.dumps(BOXES), encoding="utf-8")
-    with (run / "rows.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["full_name", "city"])
-        writer.writeheader()
-        writer.writerows(ROWS)
+    write_rows(run / "rows.csv", ROWS)
+    write_rows(run / "rows-twin.csv", [{"full_name": "", "city": ""} for _ in ROWS])
 
 
 if __name__ == "__main__":

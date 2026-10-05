@@ -17,10 +17,11 @@ Fill an AcroForm lets a user omit a correct boxes file. synthform reads the PDF 
 Preconditions:
 
 - Doctor has passed.
-- This entry point is not covered by `drive-fill-boxes`. Do not report it as verified after that command.
+- `skills/verify-synthform/scripts/verify-synthform drive-fill-acroform` covers this entry point. `drive-fill-boxes` does not.
+- `acro-skips-signature` is not covered by a drive. Report it as not verified.
 
-- **Fill.** Build an AcroForm PDF with text fields named `full_name` and `city`, then run the CLI without relying on `--boxes`. Exit code 0. `labels.jsonl` field names are `full_name` and `city`.
-- **Proof.** `extract_text()` does not contain the CSV values. Metadata contains `synthetic training sample`.
+- **Fill.** The drive builds an AcroForm PDF with text fields named `full_name` and `city` and a decoy boxes file. It runs the CLI with `--dpi 90 --seed 3`. Exit code 0. `labels.jsonl` field names are `full_name` and `city`.
+- **Proof.** `extract_text()` does not contain the CSV values. Metadata contains `synthetic training sample`. Evidence is in `/tmp/synthform-verify-evidence/fill-acroform/`.
 
 ## Gotchas
 

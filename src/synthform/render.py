@@ -58,13 +58,15 @@ def draw_field(
     style: RowStyle,
     seed: int,
     field_name: str,
-) -> FieldJitter:
+) -> FieldJitter | None:
     x, y, width, height = box
     params = field_draw_params(style, seed, field_name, width, height)
     fitted = params.size_px
     if width >= 2 and height >= 2 and text.strip():
         layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         fitted = _paint_text(layer, text, style.font_path, params)
+        if fitted is None:
+            return None
         page.paste(layer, (x, y), layer)
     if fitted == params.size_px:
         return params
@@ -83,11 +85,11 @@ def _shift_ink(ink: tuple[int, int, int], rng: random.Random) -> tuple[int, int,
     return shifted  # type: ignore[return-value]
 
 
-def _paint_text(layer: Image.Image, text: str, font_path: Path, params: FieldJitter) -> int:
+def _paint_text(layer: Image.Image, text: str, font_path: Path, params: FieldJitter) -> int | None:
     width, height = layer.size
     budget_w = max(1, width - 2)
     budget_h = max(1, height - 2)
-    font, lines, tracking_px, line_h, size = _fit(
+    font, lines, tracking_px, line_h, size, fits = _fit(
         text,
         font_path,
         budget_w,
@@ -96,6 +98,8 @@ def _paint_text(layer: Image.Image, text: str, font_path: Path, params: FieldJit
         params.tracking_em,
         params.rotation,
     )
+    if not fits:
+        return None
     block_w = max(1, math.ceil(max(_text_width(line, font, tracking_px) for line in lines)))
     block_h = max(1, line_h * len(lines))
     text_image = Image.new("RGBA", (block_w + 2, block_h + 2), (0, 0, 0, 0))
@@ -134,10 +138,11 @@ def _fit(
         block_h = line_h * len(lines)
         rot_w, rot_h = _rotated_size(block_w + 2, block_h + 2, rotation)
         if rot_w <= budget_w and rot_h <= budget_h:
-            return font, lines, tracking_px, line_h, size
+            return font, lines, tracking_px, line_h, size, True
     font = ImageFont.truetype(str(font_path), 6)
     tracking_px = tracking_em * 6
-    return font, _wrap(text, font, budget_w, tracking_px), tracking_px, max(1, int(math.ceil(6 * 1.2))), 6
+    lines = _wrap(text, font, budget_w, tracking_px)
+    return font, lines, tracking_px, max(1, int(math.ceil(6 * 1.2))), 6, False
 
 
 def _wrap(text: str, font: ImageFont.FreeTypeFont, max_width: float, tracking_px: float) -> list[str]:

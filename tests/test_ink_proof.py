@@ -140,6 +140,32 @@ def test_check_reads_boxes_from_the_filled_labels(tmp_path: Path):
     assert any(message.startswith("ink outside label box") for message in failures)
 
 
+def test_raster_size_mismatch_fails_and_the_summary_does_not_claim_a_pass(tmp_path: Path):
+    check = _load_check()
+    boxes = [_label("a", 10)]
+    _write_run(tmp_path / "filled", _inked_page(10), boxes)
+    _write_run(tmp_path / "twin", Image.new("RGB", (140, 100), (255, 255, 255)), [])
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    failures = check.ink_failures(tmp_path / "filled", tmp_path / "twin", evidence)
+    assert any("differ in page count or raster size" in message for message in failures)
+    last = (evidence / "diff-summary.txt").read_text(encoding="utf-8").splitlines()[-1]
+    assert last == "outside_max=unchecked"
+    assert "<=" not in last
+
+
+def test_missing_twin_pdf_fails_and_the_summary_does_not_claim_a_pass(tmp_path: Path):
+    check = _load_check()
+    _write_run(tmp_path / "filled", _inked_page(10), [_label("a", 10)])
+    (tmp_path / "twin").mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    failures = check.ink_failures(tmp_path / "filled", tmp_path / "twin", evidence)
+    assert failures == ["twin run has no row-0001.pdf"]
+    last = (evidence / "diff-summary.txt").read_text(encoding="utf-8").splitlines()[-1]
+    assert last == "outside_max=unchecked"
+
+
 def test_pixel_inside_another_box_is_not_outside(tmp_path: Path):
     check = _load_check()
     blank = Image.new("RGB", (120, 100), (255, 255, 255))

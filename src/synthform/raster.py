@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from PIL import Image
 import pypdfium2 as pdfium
+from pypdf import PdfReader
 
 from synthform.errors import ScanformError
 from synthform.fields import FieldBox
+
+CROPBOX_TOLERANCE_PT = 0.01
 
 
 def load_form_pages(
@@ -22,6 +25,7 @@ def load_form_pages(
         return [image], [(width_pt, height_pt)]
     if suffix != ".pdf":
         raise ScanformError("FORM must be a PDF, PNG, or JPEG")
+    _refuse_rotated_or_cropped(path)
     document = pdfium.PdfDocument(str(path))
     try:
         if len(document) == 0:
@@ -37,6 +41,21 @@ def load_form_pages(
         return images, sizes
     finally:
         document.close()
+
+
+def _refuse_rotated_or_cropped(path) -> None:
+    for number, page in enumerate(PdfReader(str(path)).pages, start=1):
+        rotation = page.rotation % 360
+        if rotation:
+            raise ScanformError(f"page {number} has /Rotate {rotation}; only /Rotate 0 is supported")
+        media = page.mediabox
+        crop = page.cropbox
+        corners = zip(
+            (media.left, media.bottom, media.right, media.top),
+            (crop.left, crop.bottom, crop.right, crop.top),
+        )
+        if any(abs(float(a) - float(b)) > CROPBOX_TOLERANCE_PT for a, b in corners):
+            raise ScanformError(f"page {number} has a CropBox that differs from its MediaBox")
 
 
 def points_to_pixels(

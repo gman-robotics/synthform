@@ -11,7 +11,7 @@ from pypdf.generic import IndirectObject
 
 from synthform.errors import ScanformError
 
-_SKIPPED_FIELD_TYPES = {"/Btn", "/Sig"}
+_FILLED_FIELD_TYPE = "/Tx"
 
 
 @dataclass(frozen=True)
@@ -84,7 +84,7 @@ def extract_acroform_boxes(path: Path) -> list[FieldBox]:
             if str(widget.get("/Subtype", "")) != "/Widget":
                 continue
             field_type = _inherited(widget, "/FT")
-            if field_type is not None and str(field_type) in _SKIPPED_FIELD_TYPES:
+            if field_type is None or str(field_type) != _FILLED_FIELD_TYPE:
                 continue
             rect = widget.get("/Rect")
             name = _qualified_name(widget)

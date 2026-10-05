@@ -19,6 +19,10 @@ Use when a change touches fill, boxes, AcroForm, labels, or scan output, or when
 - Filling Form 1583 or any legal, tax, or identity form for submission
 - Cloning a person's handwriting or signature
 
+## Requirements
+
+Python 3.12/3.13 only, no CI. The repo has no CI configuration, so run the proofs by hand on a machine with Python 3.12 or 3.13.
+
 ## Companions
 
 | Skill | Role here |
@@ -86,7 +90,7 @@ Required files for `drive-fill-boxes`:
 - `text-layer.txt` — `pypdf` extract of both PDFs, which must not contain the synthetic answer tokens
 - `summary.txt` — row count, font ids, and the metadata warning check
 - `command-twin.txt`, `stdout-twin.txt`, `stderr-twin.txt`, and `exit_code-twin.txt` — the twin run
-- `diff-summary.txt` — the largest difference outside the label boxes and the share of each box at 48 gray levels or more. The last line is `outside_max<=8` when the check passes
+- `diff-summary.txt` — the largest difference outside the label boxes and the share of each box where the largest of the red, green, and blue differences is 48 or more. The last line is `outside_max<=8` when the check passes, `outside_max=N` when ink is outside the boxes, and `outside_max=unchecked` when a twin PDF is missing or its raster size differs
 - `diff-row-0001.png` and `diff-row-0002.png` — the difference image of page 1 of each row, made four times brighter
 
 The other drives write `command.txt`, `stdout.txt`, `stderr.txt`, `exit_code.txt`, and the files that their check reads. `drive-seed-repro` writes `command-a.txt`, `command-b.txt`, `labels-a.jsonl`, and `labels-b.jsonl`.
@@ -112,7 +116,7 @@ Removes `/tmp/synthform-verify-work` only. It does not delete `/tmp/synthform-ve
 | same | `skills/verify-synthform/scripts/verify-synthform drive-seed-repro` |
 | same | `skills/verify-synthform/scripts/verify-synthform drive-refuse-missing-boxes` |
 | same | `skills/verify-synthform/scripts/verify-synthform drive-all` |
-| `scripts/check-fill-boxes.py` | `check-fill-boxes.py FILLED_OUT EVIDENCE [TWIN_OUT]` (the drive calls it) |
 | same | `skills/verify-synthform/scripts/verify-synthform cleanup` |
+| `scripts/check-fill-boxes.py` | `check-fill-boxes.py FILLED_OUT EVIDENCE [TWIN_OUT]` (the drive calls it) |
 
 Run them from the repo root. They are executable. Each drive is more than one command, so it is a script, not prose.

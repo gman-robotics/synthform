@@ -1,9 +1,11 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from pypdf import PdfReader
 
 REPO = Path(__file__).resolve().parents[1]
@@ -120,3 +122,57 @@ def test_missing_boxes_exits_2_and_creates_no_pdf(tmp_path: Path):
     assert proc.returncode == 2
     assert MISSING_BOXES in proc.stderr
     assert not out.exists()
+
+
+SHELL_DRIVES = (
+    "drive-fill-acroform",
+    "drive-fill-json-image",
+    "drive-seed-repro",
+    "drive-refuse-missing-boxes",
+    "drive-all",
+)
+DRIVE_TOOLS = ("bash", "grep", "cmp", "cp")
+DRIVE_LIMIT_SECONDS = 600
+
+
+def _run_shell_drive(drive: str, tmp_path: Path) -> tuple[subprocess.CompletedProcess, Path]:
+    for tool in DRIVE_TOOLS:
+        if shutil.which(tool) is None:
+            pytest.skip(f"{tool} is not installed, so the shell drive cannot run")
+    evidence = tmp_path / "evidence"
+    env = _env()
+    env.update(
+        SYNTHFORM_PYTHON=sys.executable,
+        SYNTHFORM_VERIFY_WORK=str(tmp_path / "work"),
+        SYNTHFORM_VERIFY_EVIDENCE=str(evidence),
+    )
+    proc = subprocess.run(
+        [str(SCRIPTS / "verify-synthform"), drive],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=DRIVE_LIMIT_SECONDS,
+        check=False,
+    )
+    return proc, evidence
+
+
+@pytest.mark.parametrize("drive", SHELL_DRIVES)
+def test_shell_drive_exits_0_and_writes_evidence(tmp_path: Path, drive: str):
+    proc, evidence = _run_shell_drive(drive, tmp_path)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert proc.stdout.strip().splitlines()[-1].startswith(f"{drive} ok")
+    folders = sorted(path.name for path in evidence.iterdir())
+    if drive == "drive-all":
+        assert folders == ["fill-acroform", "fill-boxes", "fill-json-image", "refuse-missing-boxes", "seed-repro"]
+    else:
+        assert folders == [drive.removeprefix("drive-")]
+    for folder in evidence.iterdir():
+        assert (folder / "exit_code.txt").is_file() or (folder / "exit_code-a.txt").is_file(), folder
+
+
+def test_unknown_shell_drive_name_exits_2(tmp_path: Path):
+    proc, _ = _run_shell_drive("drive-nothing", tmp_path)
+    assert proc.returncode == 2
+    assert "usage:" in proc.stderr

@@ -120,15 +120,18 @@ def ink_failures(filled: Path, twin: Path, evidence: Path | None) -> list[str]:
     dpi = int(json.loads((filled / "manifest.json").read_text(encoding="utf-8"))["dpi"])
     labels = read_labels(filled)
     overall = 0
+    unchecked = False
     for pdf in sorted(filled.glob("row-*.pdf")):
         twin_pdf = twin / pdf.name
         if not twin_pdf.is_file():
             failures.append(f"twin run has no {pdf.name}")
+            unchecked = True
             continue
         filled_pages = render_pages(pdf, dpi)
         twin_pages = render_pages(twin_pdf, dpi)
         if [page.size for page in filled_pages] != [page.size for page in twin_pages]:
             failures.append(f"{pdf.name} and its twin differ in page count or raster size")
+            unchecked = True
             continue
         for page_index, (filled_page, twin_page) in enumerate(zip(filled_pages, twin_pages)):
             diff = difference_image(filled_page, twin_page)
@@ -160,9 +163,12 @@ def ink_failures(filled: Path, twin: Path, evidence: Path | None) -> list[str]:
             if evidence is not None and page_index == 0:
                 gained = diff.point(lambda value: min(255, value * DIFF_GAIN))
                 gained.save(evidence / f"diff-{pdf.stem}.png")
-    summary.append(
-        f"outside_max<={OUTSIDE_TOL}" if overall <= OUTSIDE_TOL else f"outside_max={overall}"
-    )
+    if overall > OUTSIDE_TOL:
+        summary.append(f"outside_max={overall}")
+    elif unchecked:
+        summary.append("outside_max=unchecked")
+    else:
+        summary.append(f"outside_max<={OUTSIDE_TOL}")
     if evidence is not None:
         (evidence / "diff-summary.txt").write_text("\n".join(summary) + "\n", encoding="utf-8")
     return failures

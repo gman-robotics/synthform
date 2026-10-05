@@ -43,6 +43,7 @@ def fill_form(
     styles = assign_row_styles(len(rows), seed, load_font_faces(font_dir))
     out.mkdir(parents=True, exist_ok=True)
     labels: list[dict[str, object]] = []
+    skipped_fields: list[dict[str, str]] = []
     filenames: list[str] = []
     for index, row in enumerate(rows):
         row_number = index + 1
@@ -60,6 +61,10 @@ def fill_form(
             if pixel_box[2] < 2 or pixel_box[3] < 2:
                 continue
             jitter = draw_field(image, pixel_box, text, style, seed, field.name)
+            if jitter is None:
+                print(f"synthform: {row_id} field {field.name!r}: text does not fit", file=sys.stderr)
+                skipped_fields.append({"row_id": row_id, "field": field.name})
+                continue
             drawn.append((field, text, pixel_box, jitter))
         final_pages = []
         scan_params = []
@@ -86,6 +91,8 @@ def fill_form(
                 }
             )
     _write_labels(out / "labels.jsonl", labels)
+    if not labels:
+        print("synthform: no label written", file=sys.stderr)
     manifest = {
         "generator": "synthform",
         "version": __version__,
@@ -97,6 +104,7 @@ def fill_form(
         "row_count": len(rows),
         "form": form.name,
         "files": filenames,
+        "skipped_fields": skipped_fields,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 

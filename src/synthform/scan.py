@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from PIL import Image, ImageFilter
 
 
+JPEG_LEAK_PAD_PX = 4
+
+
 @dataclass(frozen=True)
 class ScanParams:
     angle: float
@@ -82,7 +85,7 @@ def map_box(
         box_left, box_upper, box_right, box_lower = left, upper, right, lower
     else:
         box_left, box_upper, box_right, box_lower = bbox
-    pad = int(math.ceil(params.blur_radius * 3 + 1))
+    pad = int(math.ceil(params.blur_radius * 3 + 1)) + JPEG_LEAK_PAD_PX
     box_left = max(0, box_left - pad)
     box_upper = max(0, box_upper - pad)
     box_right = min(image_w, box_right + pad)

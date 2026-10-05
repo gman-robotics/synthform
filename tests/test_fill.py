@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from PIL import Image
 from pypdf import PdfReader
 from reportlab.pdfgen import canvas
@@ -152,6 +153,104 @@ def test_pdf_without_fields_requires_boxes(tmp_path: Path):
     assert main(
         ["fill", "--form", str(form), "--data", str(data), "--out", str(tmp_path / "out")]
     ) == 2
+
+
+def test_unfit_token_gets_no_label_a_stderr_line_and_a_skipped_field(tmp_path: Path, capsys):
+    form = tmp_path / "blank.pdf"
+    pdf = canvas.Canvas(str(form), pagesize=(300, 200))
+    pdf.rect(20, 100, 110, 42, stroke=1, fill=0)
+    pdf.save()
+    boxes_path = tmp_path / "boxes.json"
+    boxes_path.write_text(
+        json.dumps(
+            [
+                {"name": "notes", "page": 0, "x": 20, "y": 100, "w": 110, "h": 42},
+                {"name": "full_name", "page": 0, "x": 20, "y": 30, "w": 200, "h": 40},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    token = "SUPERCALIFRAGILISTIC-VALUE-998877" * 2
+    data = tmp_path / "rows.csv"
+    with data.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["notes", "full_name"])
+        writer.writeheader()
+        writer.writerow({"notes": token, "full_name": "Ada Lovelace"})
+        writer.writerow({"notes": "Ada", "full_name": "Grace Hopper"})
+    out = tmp_path / "out"
+
+    assert main(
+        [
+            "fill",
+            "--form", str(form),
+            "--data", str(data),
+            "--boxes", str(boxes_path),
+            "--out", str(out),
+            "--dpi", "72",
+            "--seed", "4",
+        ]
+    ) == 0
+
+    labels = _read_labels(out)
+    assert [(line["row_id"], line["field"]) for line in labels] == [
+        ("row-0001", "full_name"),
+        ("row-0002", "notes"),
+        ("row-0002", "full_name"),
+    ]
+    assert token not in {line["text"] for line in labels}
+    stderr_lines = capsys.readouterr().err.splitlines()
+    assert [line for line in stderr_lines if "text does not fit" in line] == [
+        "synthform: row-0001 field 'notes': text does not fit"
+    ]
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["skipped_fields"] == [{"row_id": "row-0001", "field": "notes"}]
+
+
+@pytest.mark.parametrize("columns", ["empty", "unboxed"])
+def test_no_label_written_warns_and_exits_0(tmp_path: Path, capsys, columns: str):
+    form = tmp_path / "blank.pdf"
+    boxes = _write_blank_form(form)
+    boxes_path = tmp_path / "boxes.json"
+    boxes_path.write_text(json.dumps(boxes), encoding="utf-8")
+    data = tmp_path / "rows.csv"
+    with data.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["full_name", "city", "extra"])
+        writer.writeheader()
+        extra = "no box for this" if columns == "unboxed" else ""
+        writer.writerow({"full_name": "", "city": "", "extra": extra})
+    out = tmp_path / "out"
+
+    assert main(
+        [
+            "fill",
+            "--form", str(form),
+            "--data", str(data),
+            "--boxes", str(boxes_path),
+            "--out", str(out),
+            "--dpi", "72",
+            "--seed", "2",
+        ]
+    ) == 0
+
+    assert "no label written" in capsys.readouterr().err
+    assert (out / "labels.jsonl").read_text(encoding="utf-8") == ""
+    assert json.loads((out / "manifest.json").read_text(encoding="utf-8"))["skipped_fields"] == []
+
+
+def test_a_run_with_labels_does_not_warn_about_missing_labels(tmp_path: Path, capsys):
+    form = tmp_path / "blank.pdf"
+    boxes = _write_blank_form(form)
+    boxes_path = tmp_path / "boxes.json"
+    boxes_path.write_text(json.dumps(boxes), encoding="utf-8")
+    data = tmp_path / "rows.csv"
+    _write_csv(data, ANSWERS)
+    assert main(
+        ["fill", "--form", str(form), "--data", str(data), "--boxes", str(boxes_path),
+         "--out", str(tmp_path / "out"), "--dpi", "72", "--seed", "2"]
+    ) == 0
+    err = capsys.readouterr().err
+    assert "no label written" not in err
+    assert "text does not fit" not in err
 
 
 def test_help_states_the_synthetic_limit():

@@ -34,7 +34,9 @@ synthform fill --form blank.pdf --data rows.csv --out out --seed 7
 
 If the PDF has AcroForm text fields, synthform uses those widget rectangles. A missing `--boxes` file is fine in that case. When AcroForm fields exist, synthform uses them and does not use `--boxes`.
 
-Signature widgets and buttons are skipped. This tool does not draw a signature graphic and has no flag to clone a person's signature.
+synthform fills text fields only (field type `/Tx`, also when a parent field gives the type). It skips signature widgets, buttons, choice fields, and widgets with no field type. This tool does not draw a signature graphic and has no flag to clone a person's signature. A PDF that has only skipped widgets has no usable AcroForm text field, so pass `--boxes`.
+
+A PDF page with `/Rotate` other than 0, or with a CropBox that differs from its MediaBox, is refused. The command prints a message on stderr, exits with code 2, and writes nothing. Remove the rotation or the crop first. Images and unrotated PDFs are not affected.
 
 When the PDF has no AcroForm fields, or the form is an image, pass `--boxes`:
 
@@ -66,15 +68,19 @@ When the PDF has no AcroForm fields, or the form is an image, pass `--boxes`:
 
 `style` is the row's shared jitter: size scale, baseline, rotation, tracking, and ink. `jitter` is the extra per-field shift actually used when drawing. Ink is near-black and is not `#000000`.
 
-The pixel box is the field rectangle after the small scan rotation, expanded so the mild blur stays inside it.
+The pixel box is the field rectangle after the small scan rotation, expanded so the mild blur and the JPEG block edges stay inside it. It is not a tight box around the ink.
 
-`manifest.json` includes `generator`, `version`, and `warning`.
+A field whose text does not fit the box at the smallest font size (6 px) is not drawn. synthform writes no label line for it, prints one line on stderr that holds `text does not fit`, and lists it in `skipped_fields` in `manifest.json`. Each entry has `row_id` and `field`. The list is empty when no field is skipped.
+
+When a run writes no label at all, synthform prints `no label written` on stderr. The exit code stays 0. The PDFs and `manifest.json` are still written.
+
+`manifest.json` includes `generator`, `version`, `warning`, and `skipped_fields`.
 
 ## How the pages are made
 
 For each row, synthform picks one Open Font License handwriting font and one jitter setting. When the number of rows is small (at most the size of the built-in style list, which is thousands of font and jitter pairs), two rows do not share that same pair.
 
-Each field then gets a little more jitter: size, baseline, a small rotation, tracking, near-black ink, and a slight x/y offset inside the box. Text that does not fit is wrapped or shrunk. Nothing is drawn outside the box.
+Each field then gets a little more jitter: size, baseline, a small rotation, tracking, near-black ink, and a slight x/y offset inside the box. Text that does not fit is wrapped or shrunk. If it still does not fit at 6 px, the field is skipped. Nothing is drawn outside the box.
 
 After the fields are composited, synthform applies a small page rotation, mild blur, sensor noise, JPEG-style compression, and a slight gray paper cast. It then wraps that raster in a PDF. There is no live text layer of the answers.
 

@@ -16,10 +16,10 @@ Refuse a PDF with no boxes lets a user see a clear failure instead of a blank sc
 Preconditions:
 
 - Doctor has passed.
-- Not covered by `drive-fill-boxes`.
+- `skills/verify-synthform/scripts/verify-synthform drive-refuse-missing-boxes` covers this entry point. `drive-fill-boxes` does not.
 
-- **Fill.** Run the command above. Exit code is 2.
-- **Proof.** `out/row-0001.pdf` does not exist.
+- **Fill.** The drive runs the command above on the blank form of the boxes drive. Exit code is 2. `stderr.txt` holds `PDF has no AcroForm text fields; pass --boxes`.
+- **Proof.** The `--out` directory does not exist, so `out/row-0001.pdf` does not exist. Evidence is in `/tmp/synthform-verify-evidence/refuse-missing-boxes/`.
 
 ## Gotchas
 

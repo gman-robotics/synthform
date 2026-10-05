@@ -1,4 +1,6 @@
 import csv
+import gc
+import io
 import json
 import subprocess
 import sys
@@ -6,10 +8,15 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+from PIL.JpegImagePlugin import JpegImageFile
 from pypdf import PdfReader
+from reportlab import rl_config
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from synthform import SYNTHETIC_WARNING, __version__
+from synthform import fill as fill_module
+from synthform import pdfout
 from synthform.cli import main
 from synthform.fill import fill_form
 
@@ -432,3 +439,113 @@ def _write_acro_form(path: Path) -> None:
         fontSize=12,
     )
     pdf.save()
+
+
+def _fill_two_rows(tmp_path: Path, out_name: str = "out", dpi: int = 100) -> Path:
+    form = tmp_path / "blank.pdf"
+    boxes_path = tmp_path / "boxes.json"
+    if not form.exists():
+        boxes_path.write_text(json.dumps(_write_blank_form(form)), encoding="utf-8")
+        _write_csv(tmp_path / "rows.csv", ANSWERS)
+    out = tmp_path / out_name
+    fill_form(form=form, data=tmp_path / "rows.csv", out=out, boxes=boxes_path, dpi=dpi, seed=7)
+    return out
+
+
+def _image_streams(pdf: Path) -> list:
+    reader = PdfReader(str(pdf))
+    streams = []
+    for page in reader.pages:
+        xobjects = page["/Resources"]["/XObject"]
+        for name in xobjects:
+            obj = xobjects[name].get_object()
+            if obj["/Subtype"] == "/Image":
+                streams.append(obj)
+    return streams
+
+
+def _filters(stream) -> list[str]:
+    value = stream.get("/Filter")
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [str(value)]
+    return [str(item) for item in value]
+
+
+def test_pdf_embeds_the_jpeg_as_is(tmp_path: Path, monkeypatch):
+    loads: list[int] = []
+    real_load = JpegImageFile.load
+
+    def counting_load(self, *args, **kwargs):
+        loads.append(1)
+        return real_load(self, *args, **kwargs)
+
+    monkeypatch.setattr(JpegImageFile, "load", counting_load)
+    written: list[tuple[Path, list, int]] = []
+    real_write = fill_module.write_image_pdf
+
+    def spy(path: Path, pages: list, dpi: int) -> None:
+        written.append((path, list(pages), len(loads)))
+        real_write(path, pages, dpi)
+        loads.clear()
+
+    monkeypatch.setattr(fill_module, "write_image_pdf", spy)
+    _fill_two_rows(tmp_path)
+
+    assert len(written) == 2
+    for path, pages, loads_before_write in written:
+        assert loads_before_write == 0
+        assert all(isinstance(page, bytes) for page in pages)
+        streams = _image_streams(path)
+        assert len(streams) == len(pages) == 1
+        for stream, page in zip(streams, pages):
+            assert _filters(stream) == ["/DCTDecode"]
+            assert stream._data == page
+
+
+def test_pdf_metadata_is_written_once(tmp_path: Path):
+    assert not hasattr(pdfout, "PdfWriter")
+    assert not hasattr(pdfout, "_stamp_metadata")
+    first = _fill_two_rows(tmp_path, "a")
+    second = _fill_two_rows(tmp_path, "b")
+    for name in ("row-0001.pdf", "row-0002.pdf"):
+        assert (first / name).read_bytes() == (second / name).read_bytes()
+        meta = PdfReader(str(first / name)).metadata
+        assert meta.title == "Synthetic training sample"
+        assert meta.subject == SYNTHETIC_WARNING
+        assert meta.keywords == "synthetic training sample, not a signed original"
+        assert meta.creator == f"synthform {__version__}"
+        assert meta.author == "synthform synthetic training generator"
+        assert meta.producer == f"synthform {__version__} synthetic training sample"
+
+
+def test_pdf_writer_leaves_the_reportlab_ascii85_setting_alone(tmp_path: Path):
+    before = rl_config.useA85
+    _fill_two_rows(tmp_path)
+    assert rl_config.useA85 == before
+    other = tmp_path / "other.pdf"
+    pdf = canvas.Canvas(str(other), pagesize=(200, 200))
+    pdf.drawImage(_small_png(tmp_path), 10, 10, width=50, height=50)
+    pdf.save()
+    filters = _filters(_image_streams(other)[0])
+    assert ("/ASCII85Decode" in filters) == bool(before)
+
+
+def _small_png(tmp_path: Path) -> str:
+    path = tmp_path / "small.png"
+    Image.new("RGB", (8, 8), (200, 10, 10)).save(path)
+    return str(path)
+
+
+def test_pdf_writer_frees_each_page_reader_without_gc(tmp_path: Path):
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), (240, 240, 236)).save(buffer, format="JPEG", quality=80)
+    gc.collect()
+    gc.disable()
+    try:
+        pdfout.write_image_pdf(tmp_path / "one.pdf", [buffer.getvalue(), buffer.getvalue()], 72)
+        alive = [item for item in gc.get_objects() if isinstance(item, ImageReader)]
+    finally:
+        gc.enable()
+    assert alive == []

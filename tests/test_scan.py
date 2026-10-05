@@ -1,3 +1,4 @@
+import io
 import random
 import tomllib
 from dataclasses import replace
@@ -78,6 +79,7 @@ def test_blur_radius_scales_with_dpi():
         assert at_200.blur_radius / at_100.blur_radius == pytest.approx(2.0)
         assert at_200.angle == at_100.angle
         assert at_200.jpeg_quality == at_100.jpeg_quality
+        assert at_200.grain_sigma == at_100.grain_sigma
 
 
 def test_grain_sigma_stays_between_2_and_5_levels():
@@ -86,16 +88,16 @@ def test_grain_sigma_stays_between_2_and_5_levels():
 
 
 def test_cast_is_applied_before_jpeg(monkeypatch):
-    seen: list[Image.Image] = []
-    real_encode = scan._jpeg_roundtrip
+    seen: list = []
+    real_encode = scan._jpeg_bytes
 
-    def spy(image: Image.Image, quality: int) -> Image.Image:
+    def spy(image: Image.Image, quality: int) -> bytes:
         seen.append(image.copy())
         result = real_encode(image, quality)
-        seen.append(result.copy())
+        seen.append(Image.open(io.BytesIO(result)).convert("RGB"))
         return result
 
-    monkeypatch.setattr(scan, "_jpeg_roundtrip", spy)
+    monkeypatch.setattr(scan, "_jpeg_bytes", spy)
     params = replace(_scan_params(1), angle=0.0, cast_alpha=0.12, cast_color=(240, 230, 200))
     page = Image.new("RGB", (96, 96), (255, 255, 255))
     result = apply_scan(page, params, random.Random(1))

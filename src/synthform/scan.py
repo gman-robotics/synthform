@@ -87,6 +87,11 @@ def map_box(
         )
         if rotated[2] > rotated[0] and rotated[3] > rotated[1]:
             box_left, box_upper, box_right, box_lower = rotated
+        if (right - left) <= 2 and (lower - upper) <= 2:
+            box_left = min(box_left, left)
+            box_upper = min(box_upper, upper)
+            box_right = max(box_right, right)
+            box_lower = max(box_lower, lower)
     pad = int(math.ceil(params.blur_radius * 3 + 1)) + JPEG_LEAK_PAD_PX
     box_left = max(0, box_left - pad)
     box_upper = max(0, box_upper - pad)

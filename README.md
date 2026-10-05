@@ -70,7 +70,7 @@ When the PDF has no AcroForm fields, or the form is an image, pass `--boxes`:
 
 The pixel box is the field rectangle after the small scan rotation, expanded so the mild blur and the JPEG block edges stay inside it. It is not a tight box around the ink.
 
-A field whose text does not fit the box at the smallest font size (6 px) is not drawn. synthform writes no label line for it, prints one line on stderr that holds `text does not fit`, and lists it in `skipped_fields` in `manifest.json`. Each entry has `row_id` and `field`. The list is empty when no field is skipped.
+A field whose text does not fit the box at the smallest font size (6 px) is not drawn. The box height is in pixels at the run dpi. At 6 px one line needs a box at least 12 px high when the rotation is 0, and 13 px for short text in the built-in styles, because their rotation is never exactly 0. Longer text can need a few more pixels. synthform writes no label line for it, prints one line on stderr that holds `text does not fit`, and lists it in `skipped_fields` in `manifest.json`. Each entry has `row_id` and `field`. The list is empty when no field is skipped.
 
 When a run writes no label at all, synthform prints `no label written` on stderr. The exit code stays 0. The PDFs and `manifest.json` are still written.
 

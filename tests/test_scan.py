@@ -16,12 +16,12 @@ MM_PER_INCH = 25.4
 PYTHON_CLAIM = "Python 3.12/3.13 only, no CI"
 
 
-def _scan_params(seed: int):
-    return params_for(random.Random(seed))
+def _scan_params(seed: int, dpi: int = 200):
+    return params_for(random.Random(seed), dpi)
 
 
 def _add_grain(page: Image.Image, rng: random.Random, sigma: float) -> Image.Image:
-    return scan._sensor_noise(page, rng, sigma, 0.06)
+    return scan._grain(page, rng, sigma)
 
 
 def _mean_shift(level: int, seed: int = 1) -> float:

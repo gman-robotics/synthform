@@ -1,6 +1,6 @@
 """Synthetic scanned-form training generator."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 SYNTHETIC_WARNING = (
     "Synthetic training sample. Not a signed original. "

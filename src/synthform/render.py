@@ -39,8 +39,9 @@ def field_draw_params(
     field_name: str,
     box_w: int,
     box_h: int,
+    row: int = 0,
 ) -> FieldJitter:
-    rng = random.Random(stable_seed(seed, "field", field_name, style.font_id))
+    rng = random.Random(stable_seed(seed, "field", row, field_name, style.font_id))
     return FieldJitter(
         size_px=max(6, int(round(box_h * style.size_scale * rng.uniform(0.94, 1.06)))),
         rotation=style.rotation + rng.uniform(-1.0, 1.0),
@@ -58,9 +59,10 @@ def draw_field(
     style: RowStyle,
     seed: int,
     field_name: str,
+    row: int = 0,
 ) -> FieldJitter | None:
     x, y, width, height = box
-    params = field_draw_params(style, seed, field_name, width, height)
+    params = field_draw_params(style, seed, field_name, width, height, row)
     fitted = params.size_px
     if width >= 2 and height >= 2 and text.strip():
         layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))

@@ -44,7 +44,7 @@ def test_long_text_stays_inside_the_box():
 def test_scan_keeps_page_size():
     image = Image.new("RGB", (90, 70), (255, 255, 255))
     rng = random.Random(1)
-    params = params_for(rng)
+    params = params_for(rng, 100)
     scanned = apply_scan(image, params, rng)
     assert scanned.size == image.size
     assert scanned.getpixel((4, 4)) != (255, 255, 255)
@@ -56,8 +56,7 @@ def test_mapped_box_covers_rotated_rectangle():
     params = ScanParams(
         angle=1.0,
         blur_radius=0.0,
-        noise_sigma=1.0,
-        noise_alpha=0.0,
+        grain_sigma=1.0,
         jpeg_quality=90,
         cast_alpha=0.0,
         cast_color=(230, 228, 222),
@@ -96,11 +95,12 @@ def test_unbreakable_token_that_cannot_fit_is_not_drawn():
 
 SHRINK_TOKEN = "SUPERCALIFRAGILISTIC"
 SHRINK_BOX_HEIGHT = 42
+SHRINK_ROW = 1
 
 
 def _drawn_size(width: int) -> int | None:
     page = Image.new("RGB", (width + 40, 100), (255, 255, 255))
-    jitter = draw_field(page, (20, 20, width, SHRINK_BOX_HEIGHT), SHRINK_TOKEN, _style(), seed=1, field_name="notes")
+    jitter = draw_field(page, (20, 20, width, SHRINK_BOX_HEIGHT), SHRINK_TOKEN, _style(), seed=1, field_name="notes", row=SHRINK_ROW)
     return None if jitter is None else jitter.size_px
 
 
@@ -135,7 +135,7 @@ def _fill_one_field(tmp_path, width: int) -> tuple[list[dict], dict]:
 
 @pytest.mark.parametrize("size", [6, 8])
 def test_unbreakable_token_that_fits_when_shrunk_keeps_its_label(tmp_path, size: int):
-    start = field_draw_params(_style(), 1, "notes", 110, SHRINK_BOX_HEIGHT).size_px
+    start = field_draw_params(_style(), 1, "notes", 110, SHRINK_BOX_HEIGHT, SHRINK_ROW).size_px
     assert size < start
     width = _narrowest_width_for_size(size)
     labels, manifest = _fill_one_field(tmp_path, width)
@@ -179,25 +179,36 @@ def _difference_peak(first: Image.Image, second: Image.Image, mapped: dict) -> i
 BOX_OFFSETS_PT = ((0.0, 0.0), (0.7, 0.0), (0.0, 1.3), (5.1, 3.9))
 
 
-@pytest.mark.parametrize(("dpi", "draws", "offset_draws"), [(100, 40, 8), (200, 40, 8), (300, 8, 4)])
-def test_edge_fill_stays_inside_the_padded_box(dpi: int, draws: int, offset_draws: int):
+def _edge_peak(dpi: int, seed: int, offset: tuple[float, float], inset: int, ink: tuple[int, int, int]) -> int:
     size = (round(420 * dpi / 72), round(300 * dpi / 72))
     white = Image.new("RGB", size, (255, 255, 255))
+    box = points_to_pixels(FieldBox("field", 0, 36 + offset[0], 200 + offset[1], 340, 40), (420, 300), size)
+    x, y, width, height = box
+    filled = white.copy()
+    filled.paste(ink, (x + inset, y + inset, x + width - inset, y + height - inset))
+    rng = random.Random(seed)
+    params = params_for(rng, dpi)
+    scanned_filled = apply_scan(filled, params, rng)
+    rng = random.Random(seed)
+    scanned_white = apply_scan(white, params_for(rng, dpi), rng)
+    return _difference_peak(scanned_filled, scanned_white, map_box(box, size, params))
+
+
+@pytest.mark.parametrize(("dpi", "draws", "offset_draws"), [(100, 40, 8), (200, 40, 8), (300, 8, 4)])
+def test_edge_fill_stays_inside_the_padded_box(dpi: int, draws: int, offset_draws: int):
     cases = [(seed, BOX_OFFSETS_PT[0]) for seed in range(draws)]
     cases += [(seed, offset) for offset in BOX_OFFSETS_PT[1:] for seed in range(offset_draws)]
     assert {offset for _, offset in cases} == set(BOX_OFFSETS_PT)
-    for seed, (offset_x, offset_y) in cases:
-        box = points_to_pixels(FieldBox("field", 0, 36 + offset_x, 200 + offset_y, 340, 40), (420, 300), size)
-        x, y, width, height = box
-        filled = white.copy()
-        filled.paste((20, 20, 20), (x + 2, y + 2, x + width - 2, y + height - 2))
-        rng = random.Random(seed)
-        params = params_for(rng)
-        scanned_filled = apply_scan(filled, params, rng)
-        rng = random.Random(seed)
-        scanned_white = apply_scan(white, params_for(rng), rng)
-        mapped = map_box(box, size, params)
-        assert _difference_peak(scanned_filled, scanned_white, mapped) <= OUTSIDE_TOL, (seed, offset_x, offset_y)
+    for seed, offset in cases:
+        assert _edge_peak(dpi, seed, offset, 2, (20, 20, 20)) <= OUTSIDE_TOL, (seed, offset)
+
+
+@pytest.mark.parametrize(
+    ("dpi", "seed", "offset"),
+    [(200, 88, (0.0, 1.3)), (100, 58, (0.0, 1.3)), (200, 19, (5.1, 3.9)), (300, 16, (5.1, 3.9))],
+)
+def test_solid_black_fill_without_inset_stays_inside_the_padded_box(dpi: int, seed: int, offset: tuple[float, float]):
+    assert _edge_peak(dpi, seed, offset, 0, (0, 0, 0)) <= OUTSIDE_TOL
 
 
 @pytest.mark.parametrize("blur", [0.6, 2.0, 4.0])
@@ -208,8 +219,7 @@ def test_mapped_box_covers_blurred_rotated_rectangle(blur: float, angle: float):
     params = ScanParams(
         angle=angle,
         blur_radius=blur,
-        noise_sigma=1.0,
-        noise_alpha=0.0,
+        grain_sigma=1.0,
         jpeg_quality=90,
         cast_alpha=0.0,
         cast_color=(230, 228, 222),

@@ -60,7 +60,7 @@ def fill_form(
             pixel_box = points_to_pixels(field, page_sizes[field.page], image.size)
             if pixel_box[2] < 2 or pixel_box[3] < 2:
                 continue
-            jitter = draw_field(image, pixel_box, text, style, seed, field.name)
+            jitter = draw_field(image, pixel_box, text, style, seed, field.name, row_number)
             if jitter is None:
                 print(f"synthform: {row_id} field {field.name!r}: text does not fit", file=sys.stderr)
                 skipped_fields.append({"row_id": row_id, "field": field.name})
@@ -70,7 +70,7 @@ def fill_form(
         scan_params = []
         for page_index, image in enumerate(working):
             rng = random.Random(stable_seed(seed, "scan", row_number, page_index))
-            params = params_for(rng)
+            params = params_for(rng, dpi)
             final_pages.append(apply_scan(image, params, rng))
             scan_params.append(params)
         filename = f"{row_id}.pdf"

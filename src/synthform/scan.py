@@ -1,4 +1,4 @@
-"""Turn a composited page into a mild scan: rotation, blur, noise, JPEG, paper cast."""
+"""Turn a composited page into a mild scan: rotation, blur, grain, paper cast, JPEG."""
 
 from __future__ import annotations
 
@@ -6,33 +6,34 @@ import io
 import math
 import random
 from dataclasses import dataclass
+from statistics import NormalDist
 
-from PIL import Image, ImageFilter
+from PIL import Image, ImageChops, ImageFilter
 
 
-JPEG_LEAK_PAD_PX = 4
+JPEG_LEAK_PAD_PX = 8
+MM_PER_INCH = 25.4
+GRAIN_LEVELS = 256
 
 
 @dataclass(frozen=True)
 class ScanParams:
     angle: float
     blur_radius: float
-    noise_sigma: float
-    noise_alpha: float
+    grain_sigma: float
     jpeg_quality: int
     cast_alpha: float
     cast_color: tuple[int, int, int]
 
 
-def params_for(rng: random.Random) -> ScanParams:
+def params_for(rng: random.Random, dpi: int) -> ScanParams:
     angle = rng.uniform(-1.2, 1.2)
     if abs(angle) < 0.25:
         angle = 0.35 if angle >= 0 else -0.35
     return ScanParams(
         angle=angle,
-        blur_radius=rng.uniform(0.4, 0.85),
-        noise_sigma=rng.uniform(6.0, 14.0),
-        noise_alpha=rng.uniform(0.04, 0.08),
+        blur_radius=rng.uniform(0.10, 0.22) * dpi / MM_PER_INCH,
+        grain_sigma=rng.uniform(2.0, 5.0),
         jpeg_quality=rng.randint(68, 86),
         cast_alpha=rng.uniform(0.05, 0.12),
         cast_color=(
@@ -52,10 +53,10 @@ def apply_scan(image: Image.Image, params: ScanParams, rng: random.Random) -> Im
         fillcolor=params.cast_color,
     )
     page = page.filter(ImageFilter.GaussianBlur(radius=params.blur_radius))
-    page = _sensor_noise(page, rng, params.noise_sigma, params.noise_alpha)
-    page = _jpeg_roundtrip(page, params.jpeg_quality)
+    page = _grain(page, rng, params.grain_sigma)
     cast = Image.new("RGB", page.size, params.cast_color)
-    return Image.blend(page, cast, params.cast_alpha)
+    page = Image.blend(page, cast, params.cast_alpha)
+    return _jpeg_roundtrip(page, params.jpeg_quality)
 
 
 def map_box(
@@ -98,24 +99,18 @@ def map_box(
     }
 
 
-def _sensor_noise(
-    image: Image.Image,
-    rng: random.Random,
-    sigma: float,
-    alpha: float,
-) -> Image.Image:
-    width, height = image.size
-    cell = 4
-    grid_w = (width + cell - 1) // cell
-    grid_h = (height + cell - 1) // cell
-    raw = bytearray(grid_w * grid_h)
-    for index in range(grid_w * grid_h):
-        sample = int(round(rng.gauss(128, sigma)))
-        raw[index] = min(255, max(0, sample))
-    small = Image.frombytes("L", (grid_w, grid_h), bytes(raw))
-    layer = small.resize((width, height), Image.Resampling.BILINEAR)
-    gray = Image.merge("RGB", (layer, layer, layer))
-    return Image.blend(image, gray, alpha)
+def _grain_table(sigma: float) -> list[int]:
+    normal = NormalDist()
+    quantiles = [normal.inv_cdf((level + 0.5) / GRAIN_LEVELS) for level in range(GRAIN_LEVELS)]
+    spread = math.sqrt(sum(value * value for value in quantiles) / GRAIN_LEVELS)
+    return [min(255, max(0, 128 + round(value * sigma / spread))) for value in quantiles]
+
+
+def _grain(image: Image.Image, rng: random.Random, sigma: float) -> Image.Image:
+    raw = rng.randbytes(image.width * image.height)
+    layer = Image.frombytes("L", image.size, raw).point(_grain_table(sigma))
+    signed = Image.merge("RGB", (layer, layer, layer))
+    return ImageChops.add(image, signed, 1.0, -128)
 
 
 def _jpeg_roundtrip(image: Image.Image, quality: int) -> Image.Image:

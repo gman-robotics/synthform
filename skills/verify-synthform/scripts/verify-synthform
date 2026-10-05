@@ -20,33 +20,111 @@ doctor() {
   printf 'doctor ok version=%s\n' "$version"
 }
 
-drive_fill_boxes() {
-  local run="$WORK/fill-boxes"
-  local ev="$EVIDENCE/fill-boxes"
-  rm -rf "$run"
-  mkdir -p "$run" "$ev"
-  "$PY" "$ROOT/skills/verify-synthform/scripts/make-blank-form.py" "$run"
-  local cmd=("$PY" -m synthform fill
-    --form "$run/blank.pdf"
-    --data "$run/rows.csv"
-    --boxes "$run/boxes.json"
-    --out "$run/out"
-    --dpi 100
-    --seed 7)
-  printf '%q ' "${cmd[@]}" > "$ev/command.txt"
-  printf '\n' >> "$ev/command.txt"
+SCRIPTS="$ROOT/skills/verify-synthform/scripts"
+
+prepare() {
+  RUN="$WORK/$1"
+  EV="$EVIDENCE/$1"
+  rm -rf "$RUN" "$EV"
+  mkdir -p "$RUN" "$EV"
+}
+
+run_fill() {
+  local label="$1" hashseed="$2"
+  shift 2
+  local cmd=("$PY" -m synthform fill "$@")
+  printf '%q ' env "PYTHONHASHSEED=$hashseed" "${cmd[@]}" > "$EV/command$label.txt"
+  printf '\n' >> "$EV/command$label.txt"
   set +e
-  "${cmd[@]}" > "$ev/stdout.txt" 2> "$ev/stderr.txt"
-  local rc=$?
+  env "PYTHONHASHSEED=$hashseed" "${cmd[@]}" > "$EV/stdout$label.txt" 2> "$EV/stderr$label.txt"
+  RC=$?
   set -e
-  printf '%s\n' "$rc" > "$ev/exit_code.txt"
-  if [[ "$rc" -ne 0 ]]; then
-    echo "fill exited $rc" >&2
-    exit "$rc"
+  printf '%s\n' "$RC" > "$EV/exit_code$label.txt"
+}
+
+need_exit() {
+  if [[ "$RC" -ne "$1" ]]; then
+    echo "fill exited $RC, expected $1" >&2
+    exit "$(( RC == 0 ? 1 : RC ))"
   fi
-  cp "$run/out/labels.jsonl" "$run/out/manifest.json" "$ev/"
-  "$PY" "$ROOT/skills/verify-synthform/scripts/check-fill-boxes.py" "$run/out" "$ev"
-  echo "drive-fill-boxes ok evidence=$ev"
+}
+
+drive_fill_boxes() {
+  prepare fill-boxes
+  "$PY" "$SCRIPTS/make-blank-form.py" "$RUN"
+  run_fill "" random --form "$RUN/blank.pdf" --data "$RUN/rows.csv" --boxes "$RUN/boxes.json" \
+    --out "$RUN/out" --dpi 100 --seed 7
+  need_exit 0
+  run_fill -twin random --form "$RUN/blank.pdf" --data "$RUN/rows-twin.csv" --boxes "$RUN/boxes.json" \
+    --out "$RUN/out-twin" --dpi 100 --seed 7
+  need_exit 0
+  cp "$RUN/out/labels.jsonl" "$RUN/out/manifest.json" "$EV/"
+  "$PY" "$SCRIPTS/check-fill-boxes.py" "$RUN/out" "$EV" "$RUN/out-twin"
+  echo "drive-fill-boxes ok evidence=$EV"
+}
+
+drive_fill_acroform() {
+  prepare fill-acroform
+  "$PY" "$SCRIPTS/make-acroform.py" "$RUN"
+  run_fill "" random --form "$RUN/acro.pdf" --data "$RUN/rows.csv" --boxes "$RUN/decoy-boxes.json" \
+    --out "$RUN/out" --dpi 90 --seed 3
+  need_exit 0
+  cp "$RUN/out/labels.jsonl" "$RUN/out/manifest.json" "$EV/"
+  "$PY" "$SCRIPTS/check-drive.py" acroform "$RUN/out" "$EV"
+  echo "drive-fill-acroform ok evidence=$EV"
+}
+
+drive_fill_json_image() {
+  prepare fill-json-image
+  "$PY" "$SCRIPTS/make-png-form.py" "$RUN"
+  run_fill "" random --form "$RUN/blank.png" --data "$RUN/rows.json" --boxes "$RUN/boxes.json" \
+    --out "$RUN/out" --dpi 72 --seed 1
+  need_exit 0
+  cp "$RUN/out/labels.jsonl" "$RUN/out/manifest.json" "$EV/"
+  "$PY" "$SCRIPTS/check-drive.py" json-image "$RUN/out" "$EV"
+  echo "drive-fill-json-image ok evidence=$EV"
+}
+
+drive_seed_repro() {
+  prepare seed-repro
+  "$PY" "$SCRIPTS/make-blank-form.py" "$RUN"
+  run_fill -a 1 --form "$RUN/blank.pdf" --data "$RUN/rows.csv" --boxes "$RUN/boxes.json" \
+    --out "$RUN/out-a" --dpi 72 --seed 7
+  need_exit 0
+  run_fill -b 2 --form "$RUN/blank.pdf" --data "$RUN/rows.csv" --boxes "$RUN/boxes.json" \
+    --out "$RUN/out-b" --dpi 72 --seed 7
+  need_exit 0
+  cp "$RUN/out-a/labels.jsonl" "$EV/labels-a.jsonl"
+  cp "$RUN/out-b/labels.jsonl" "$EV/labels-b.jsonl"
+  if ! cmp -s "$EV/labels-a.jsonl" "$EV/labels-b.jsonl"; then
+    echo "labels differ between the two runs" >&2
+    exit 1
+  fi
+  echo "drive-seed-repro ok evidence=$EV"
+}
+
+drive_refuse_missing_boxes() {
+  prepare refuse-missing-boxes
+  "$PY" "$SCRIPTS/make-blank-form.py" "$RUN"
+  run_fill "" random --form "$RUN/blank.pdf" --data "$RUN/rows.csv" --out "$RUN/out"
+  need_exit 2
+  if ! grep -q "PDF has no AcroForm text fields; pass --boxes" "$EV/stderr.txt"; then
+    echo "stderr does not name the missing boxes" >&2
+    exit 1
+  fi
+  if [[ -e "$RUN/out" ]]; then
+    echo "$RUN/out exists after a refused run" >&2
+    exit 1
+  fi
+  echo "drive-refuse-missing-boxes ok evidence=$EV"
+}
+
+drive_all() {
+  local drive
+  for drive in drive-fill-boxes drive-fill-acroform drive-fill-json-image drive-seed-repro drive-refuse-missing-boxes; do
+    bash "$SCRIPTS/verify-synthform" "$drive"
+  done
+  echo "drive-all ok"
 }
 
 cleanup() {
@@ -58,9 +136,14 @@ cleanup() {
 case "${1:-}" in
   doctor) doctor ;;
   drive-fill-boxes) drive_fill_boxes ;;
+  drive-fill-acroform) drive_fill_acroform ;;
+  drive-fill-json-image) drive_fill_json_image ;;
+  drive-seed-repro) drive_seed_repro ;;
+  drive-refuse-missing-boxes) drive_refuse_missing_boxes ;;
+  drive-all) drive_all ;;
   cleanup) cleanup ;;
   *)
-    echo "usage: verify-synthform doctor|drive-fill-boxes|cleanup" >&2
+    echo "usage: verify-synthform doctor|drive-fill-boxes|drive-fill-acroform|drive-fill-json-image|drive-seed-repro|drive-refuse-missing-boxes|drive-all|cleanup" >&2
     exit 2
     ;;
 esac

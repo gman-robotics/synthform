@@ -25,7 +25,7 @@ Use when a change touches fill, boxes, AcroForm, labels, or scan output, or when
 |---|---|
 | `maintain-verification-skill` | Upkeep of this map after the CLI changes |
 
-The surface is a short-lived CLI. There is no server, port, or shared session. Each drive uses its own work directory under `/tmp`. Two drives can run at once if they use different `RUN_ID` values.
+The surface is a short-lived CLI. There is no server, port, or shared session. Each drive uses its own work directory under `/tmp`. Two runs of the same drive can run at once if they use different `SYNTHFORM_VERIFY_WORK` and `SYNTHFORM_VERIFY_EVIDENCE` values.
 
 Repo root on this Mac's experiment sandbox is `/home/dev/src` inside `exp-scanform`. On a normal checkout, the root is the clone of https://github.com/gman-robotics/synthform. The helpers take that root as the working directory.
 
@@ -60,13 +60,24 @@ Drive one feature with:
 skills/verify-synthform/scripts/verify-synthform drive-fill-boxes
 ```
 
-That command creates a disposable blank PDF, a two-row CSV, and a boxes file, then runs the real CLI. See `features/fill-boxes.md` for the user-facing recipe. Other features in the map are not covered by that one command.
+That command creates a disposable blank PDF, a two-row CSV, an empty twin CSV, and a boxes file. It runs the real CLI twice with the same seed and dpi: once with the values (the filled run) and once with every value empty (the twin run). The check rasterizes the PDFs, subtracts the twin from the filled run, and fails when a label box has no ink or when ink appears outside every label box. See `features/fill-boxes.md` for the user-facing recipe.
+
+Four more drives cover the other features. Each one runs `python3 -m synthform fill` in its own process, in its own work directory under `SYNTHFORM_VERIFY_WORK`:
+
+```bash
+skills/verify-synthform/scripts/verify-synthform drive-fill-acroform
+skills/verify-synthform/scripts/verify-synthform drive-fill-json-image
+skills/verify-synthform/scripts/verify-synthform drive-seed-repro
+skills/verify-synthform/scripts/verify-synthform drive-refuse-missing-boxes
+```
+
+`drive-all` runs the five drives one after the other, each as a separate process. A feature that no drive covers is not verified. Report it as not verified.
 
 ## Evidence
 
-Proof for `drive-fill-boxes` is written to `/tmp/synthform-verify-evidence/fill-boxes/` and is not deleted by cleanup.
+Proof for each drive is written to `/tmp/synthform-verify-evidence/<drive name>/` (`fill-boxes`, `fill-acroform`, `fill-json-image`, `seed-repro`, `refuse-missing-boxes`) and is not deleted by cleanup. A drive removes the old evidence of its own name when it starts.
 
-Required files:
+Required files for `drive-fill-boxes`:
 
 - `command.txt` — the exact `python3 -m synthform fill` invocation
 - `stdout.txt` and `stderr.txt`
@@ -74,8 +85,13 @@ Required files:
 - `labels.jsonl` and `manifest.json` copied from the run
 - `text-layer.txt` — `pypdf` extract of both PDFs, which must not contain the synthetic answer tokens
 - `summary.txt` — row count, font ids, and the metadata warning check
+- `command-twin.txt`, `stdout-twin.txt`, `stderr-twin.txt`, and `exit_code-twin.txt` — the twin run
+- `diff-summary.txt` — the largest difference outside the label boxes and the share of each box at 48 gray levels or more. The last line is `outside_max<=8` when the check passes
+- `diff-row-0001.png` and `diff-row-0002.png` — the difference image of page 1 of each row, made four times brighter
 
-A passing proof shows the action (the CLI command and exit code 0) and the resulting state (two PDFs, four label lines, warning in metadata, answer tokens absent from the text layer). Do not treat a dry name as proof. This CLI has no dry-run flag. The fill command always writes files in `--out`.
+The other drives write `command.txt`, `stdout.txt`, `stderr.txt`, `exit_code.txt`, and the files that their check reads. `drive-seed-repro` writes `command-a.txt`, `command-b.txt`, `labels-a.jsonl`, and `labels-b.jsonl`.
+
+A passing proof shows the action (the CLI command and exit code 0) and the resulting state (two PDFs, four label lines, warning in metadata, answer tokens absent from the text layer, and ink in the label boxes only). Do not treat a dry name as proof. This CLI has no dry-run flag. The fill command always writes files in `--out`.
 
 ## Cleanup
 
@@ -91,6 +107,12 @@ Removes `/tmp/synthform-verify-work` only. It does not delete `/tmp/synthform-ve
 |---|---|
 | `scripts/verify-synthform` | `skills/verify-synthform/scripts/verify-synthform doctor` |
 | same | `skills/verify-synthform/scripts/verify-synthform drive-fill-boxes` |
+| same | `skills/verify-synthform/scripts/verify-synthform drive-fill-acroform` |
+| same | `skills/verify-synthform/scripts/verify-synthform drive-fill-json-image` |
+| same | `skills/verify-synthform/scripts/verify-synthform drive-seed-repro` |
+| same | `skills/verify-synthform/scripts/verify-synthform drive-refuse-missing-boxes` |
+| same | `skills/verify-synthform/scripts/verify-synthform drive-all` |
+| `scripts/check-fill-boxes.py` | `check-fill-boxes.py FILLED_OUT EVIDENCE [TWIN_OUT]` (the drive calls it) |
 | same | `skills/verify-synthform/scripts/verify-synthform cleanup` |
 
-Run them from the repo root. They are executable. `drive-fill-boxes` is more than one command, so it is a script, not prose.
+Run them from the repo root. They are executable. Each drive is more than one command, so it is a script, not prose.

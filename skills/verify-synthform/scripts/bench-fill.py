@@ -46,6 +46,13 @@ def build_inputs(directory: Path, rows: int) -> None:
             writer.writerow({name: " ".join(rng.choice(WORDS) for _ in range(rng.randint(1, 4))) for name in names})
 
 
+
+def peak_rss_mb_from_rusage(ru_maxrss: int) -> float:
+    if sys.platform == "darwin":
+        return ru_maxrss / (1024.0 * 1024.0)
+    return ru_maxrss / 1024.0
+
+
 def run_once(python: str, inputs: Path, out: Path, dpi: int) -> tuple[float, float]:
     if out.exists():
         shutil.rmtree(out)
@@ -66,7 +73,7 @@ def run_once(python: str, inputs: Path, out: Path, dpi: int) -> tuple[float, flo
     if process.returncode != 0:
         sys.stderr.write(stderr.decode("utf-8", "replace"))
         raise SystemExit(f"fill exited {process.returncode}")
-    return usage.ru_utime + usage.ru_stime, usage.ru_maxrss / 1024.0
+    return usage.ru_utime + usage.ru_stime, peak_rss_mb_from_rusage(usage.ru_maxrss)
 
 
 def main() -> int:

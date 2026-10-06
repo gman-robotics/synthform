@@ -507,6 +507,8 @@ def test_pdf_embeds_the_jpeg_as_is(tmp_path: Path, monkeypatch):
 def test_pdf_metadata_is_written_once(tmp_path: Path):
     assert not hasattr(pdfout, "PdfWriter")
     assert not hasattr(pdfout, "_stamp_metadata")
+    source = Path(pdfout.__file__).read_text(encoding="utf-8")
+    assert "pypdf" not in source
     first = _fill_two_rows(tmp_path, "a")
     second = _fill_two_rows(tmp_path, "b")
     for name in ("row-0001.pdf", "row-0002.pdf"):
